@@ -8,3 +8,4 @@ next-env.d.ts
 /tmp.txt
 .DS_Store
 .npm-cache
+.output.txt
