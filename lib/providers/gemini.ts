@@ -4,6 +4,8 @@ import { WORKBOOK_STYLES } from '@/lib/themes';
 import { AIProvider, ChatStreamChunk, PingResult } from './types';
 import { getKey, getModel } from '@/lib/ai/keys';
 import { classifyError, withBackoff } from '@/lib/ai/errors';
+import { geminiToolDeclarations } from '@/lib/tools/adapters';
+import { runTool } from '@/lib/tools/registry';
 
 const DEFAULT_MODEL = 'gemini-2.5-flash';
 
@@ -45,6 +47,7 @@ Available styles: ${WORKBOOK_STYLES.map(s => s.name).join(', ')}.`,
     tools: [
       {
         functionDeclarations: [
+          ...geminiToolDeclarations(),
           {
             name: 'propose_roadmap',
             description: 'Propose a workbook roadmap for user approval.',
@@ -126,64 +129,113 @@ async function* chatStream(
   formatted.push({ role: 'user', parts: [{ text: prompt }] });
 
   const config = buildConfig();
+  const TERMINAL_TOOLS = new Set(['propose_roadmap', 'build_workbook']);
+  const MAX_TOOL_ROUNDS = 3;
+
+  // Mutable Gemini-shaped content history; we append function-call/response turns to it
+  // as we execute in-app tools and loop back.
+  const contents: Array<{ role: string; parts: Array<Record<string, unknown>> }> = formatted.map(
+    m => ({ role: m.role, parts: m.parts.map(p => ({ ...p })) })
+  );
 
   try {
     yield { type: 'status', message: 'Thinking…' };
 
-    const stream = await withBackoff(() =>
-      makeClient().models.generateContentStream({
-        model: chatModel(),
-        contents: formatted,
-        config,
-      })
-    );
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      const stream = await withBackoff(() =>
+        makeClient().models.generateContentStream({
+          model: chatModel(),
+          contents,
+          config,
+        })
+      );
 
-    let aggregatedText = '';
-    const collectedFunctionCalls: Array<{ name?: string; args?: unknown }> = [];
-    let sawStyleTrigger = false;
-    let sawToolBreadcrumbFor = new Set<string>();
+      let aggregatedText = '';
+      const collectedFunctionCalls: Array<{ name?: string; args?: unknown }> = [];
+      let sawStyleTrigger = false;
+      const sawToolBreadcrumbFor = new Set<string>();
 
-    for await (const chunk of stream) {
-      const fc = (chunk as { functionCalls?: Array<{ name?: string; args?: unknown }> })
-        .functionCalls;
-      if (fc && fc.length > 0) {
-        for (const f of fc) {
-          collectedFunctionCalls.push(f);
-          if (f.name && !sawToolBreadcrumbFor.has(f.name)) {
-            sawToolBreadcrumbFor.add(f.name);
-            yield { type: 'tool_breadcrumb', label: `Calling ${f.name}` };
+      for await (const chunk of stream) {
+        const fc = (chunk as { functionCalls?: Array<{ name?: string; args?: unknown }> })
+          .functionCalls;
+        if (fc && fc.length > 0) {
+          for (const f of fc) {
+            collectedFunctionCalls.push(f);
+            if (f.name && !sawToolBreadcrumbFor.has(f.name)) {
+              sawToolBreadcrumbFor.add(f.name);
+              yield { type: 'tool_breadcrumb', label: `Calling ${f.name}` };
+            }
           }
         }
-      }
 
-      const delta = (chunk as { text?: string }).text ?? '';
-      if (delta) {
-        aggregatedText += delta;
-        if (!sawStyleTrigger && /choose a style|design system options/i.test(aggregatedText)) {
-          sawStyleTrigger = true;
-          yield { type: 'trigger_style_selection' };
+        const delta = (chunk as { text?: string }).text ?? '';
+        if (delta) {
+          aggregatedText += delta;
+          if (!sawStyleTrigger && /choose a style|design system options/i.test(aggregatedText)) {
+            sawStyleTrigger = true;
+            yield { type: 'trigger_style_selection' };
+          }
+          yield { type: 'text', text: delta, delta: true };
         }
-        yield { type: 'text', text: delta, delta: true };
       }
-    }
 
-    if (collectedFunctionCalls.length > 0) {
-      const call = collectedFunctionCalls[collectedFunctionCalls.length - 1];
-      const rawArgs = call.args;
-      const args =
-        typeof rawArgs === 'string' ? JSON.parse(rawArgs) : (rawArgs as Record<string, unknown>);
-      if (call.name === 'propose_roadmap') {
-        yield { type: 'roadmap', roadmap: args as never };
-        return;
+      // Look for a terminal workbook tool first.
+      const terminal = collectedFunctionCalls.find(c => c.name && TERMINAL_TOOLS.has(c.name));
+      if (terminal) {
+        const rawArgs = terminal.args;
+        const args =
+          typeof rawArgs === 'string' ? JSON.parse(rawArgs) : (rawArgs as Record<string, unknown>);
+        if (terminal.name === 'propose_roadmap') {
+          yield { type: 'roadmap', roadmap: args as never };
+          return;
+        }
+        if (terminal.name === 'build_workbook') {
+          yield { type: 'function_call', args: args as BuildWorkbookArgs };
+          return;
+        }
       }
-      if (call.name === 'build_workbook') {
-        yield { type: 'function_call', args: args as BuildWorkbookArgs };
-        return;
-      }
-    }
 
-    if (!aggregatedText.trim() && collectedFunctionCalls.length === 0) {
-      yield { type: 'text', text: "I'm having trouble analyzing that request." };
+      // In-app tool calls? Execute them, append responses, loop.
+      const inAppCalls = collectedFunctionCalls.filter(c => c.name && !TERMINAL_TOOLS.has(c.name));
+      if (inAppCalls.length > 0) {
+        // Append the model turn (function calls) to history.
+        contents.push({
+          role: 'model',
+          parts: inAppCalls.map(c => ({
+            functionCall: {
+              name: c.name,
+              args:
+                typeof c.args === 'string'
+                  ? JSON.parse(c.args as string)
+                  : ((c.args as Record<string, unknown>) ?? {}),
+            },
+          })),
+        });
+        // Execute and append the function responses.
+        const responseParts: Array<Record<string, unknown>> = [];
+        for (const c of inAppCalls) {
+          const args =
+            typeof c.args === 'string'
+              ? JSON.parse(c.args as string)
+              : ((c.args as Record<string, unknown>) ?? {});
+          const result = await runTool(c.name as string, args);
+          responseParts.push({
+            functionResponse: {
+              name: c.name,
+              response: result.ok
+                ? { content: result.content }
+                : { error: result.error ?? 'tool failed' },
+            },
+          });
+        }
+        contents.push({ role: 'user', parts: responseParts });
+        continue; // next round
+      }
+
+      if (!aggregatedText.trim() && collectedFunctionCalls.length === 0) {
+        yield { type: 'text', text: "I'm having trouble analyzing that request." };
+      }
+      return; // no more tool calls — we're done.
     }
   } catch (e: unknown) {
     const c = classifyError(e);
