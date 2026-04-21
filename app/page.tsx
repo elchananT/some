@@ -13,6 +13,7 @@ import OnboardingWelcome from '@/components/onboarding/OnboardingWelcome';
 import ProviderTelemetry from '@/components/layout/ProviderTelemetry';
 import type { WorkbookStyle, StyleVariant } from '@/lib/themes';
 import { mergePalette } from '@/lib/themes';
+import type { StylePrefs } from '@/lib/types';
 import { readOnboardingState, hasUsableCredential } from '@/lib/ai/keys';
 
 export default function EduSparkApp() {
@@ -56,15 +57,25 @@ export default function EduSparkApp() {
     handleSendMessage("I approve the roadmap. Please proceed with building the workbook as planned.");
   };
 
-  const handleSelectStyle = (style: WorkbookStyle, variant?: StyleVariant) => {
+  const handleSelectStyle = (style: WorkbookStyle, variant?: StyleVariant, prefs?: StylePrefs) => {
     setStep('idle');
     const merged = mergePalette(style.palette, variant?.paletteOverride);
     // Merged palette is currently carried in the chat message; downstream pipeline
     // (Stage 4) will thread this into BuildWorkbookArgs.colorPaletteOverride.
     void merged;
+
+    // Persist chosen print stylePrefs on the active workbook (used by the
+    // HTML/PDF exporter to pick one of the 6 locked print themes).
+    if (prefs && workbook) {
+      setWorkbook({ ...workbook, stylePrefs: prefs });
+    }
+
     const variantLabel = variant ? ` · ${variant.label}` : '';
+    const prefsSummary = prefs
+      ? ` Theme: ${prefs.theme}; density: ${prefs.density}; question types: ${prefs.questionTypes.join(', ')}.`
+      : '';
     handleSendMessage(
-      `I've selected the '${style.name}${variantLabel}' style. Please proceed with this design architecture.`
+      `I've selected the '${style.name}${variantLabel}' style.${prefsSummary} Please proceed with this design architecture.`
     );
   };
 

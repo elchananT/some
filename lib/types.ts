@@ -28,6 +28,33 @@ export interface WorkbookPage {
   customCss?: string;
 }
 
+export type PrintThemeId =
+  | 'classic-textbook'
+  | 'modern-workbook'
+  | 'playful-kids'
+  | 'exam-prep'
+  | 'scientific-paper'
+  | 'notebook-handwritten';
+
+export type QuestionTypeId =
+  | 'mcq'
+  | 'true-false'
+  | 'short-answer'
+  | 'long-answer'
+  | 'fill-blank'
+  | 'matching'
+  | 'math-workspace'
+  | 'diagram-label'
+  | 'code';
+
+export type DensityId = 'light' | 'balanced' | 'dense';
+
+export interface StylePrefs {
+  theme: PrintThemeId;
+  questionTypes: QuestionTypeId[];
+  density: DensityId;
+}
+
 export interface Workbook {
   id: string;
   title: string;
@@ -40,6 +67,9 @@ export interface Workbook {
   pages: WorkbookPage[];
   outline?: string;
   verificationReport?: string;
+  stylePrefs?: StylePrefs;
+  /** Pre-rendered print HTML twin, used for PDF/HTML export. Built from pages + stylePrefs. */
+  htmlTwin?: string;
 }
 
 export interface RoadmapItem {

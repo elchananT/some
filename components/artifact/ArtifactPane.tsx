@@ -2,9 +2,10 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Workbook, GeneratingStep, Roadmap } from '@/lib/types';
+import { Workbook, GeneratingStep, Roadmap, StylePrefs } from '@/lib/types';
 import WorkbookPreview from '../WorkbookPreview';
 import { WORKBOOK_STYLES, WorkbookStyle, StyleVariant } from '@/lib/themes';
+import StylePickerCard from '../chat/StylePickerCard';
 import { workbookToMarkdown, workbookToText, workbookToHTMLStandalone } from '@/lib/export_utils';
 import dynamic from 'next/dynamic';
 const StudioView = dynamic(() => import('./StudioView'), { ssr: false });
@@ -26,7 +27,7 @@ interface ArtifactPaneProps {
   roadmap: Roadmap | null;
   onApproveRoadmap: () => void;
   onRejectRoadmap: () => void;
-  onSelectStyle?: (style: WorkbookStyle, variant?: StyleVariant) => void;
+  onSelectStyle?: (style: WorkbookStyle, variant?: StyleVariant, prefs?: StylePrefs) => void;
   onUpdateWorkbook?: (workbook: Workbook) => void;
 }
 
@@ -91,8 +92,15 @@ export default function ArtifactPane({
             />
           </div>
         ) : step === 'style_selection' ? (
-          <div className="flex-1 flex items-center justify-center p-8 md:p-12">
-             <StyleGallery onSelect={onSelectStyle || (() => {})} />
+          <div className="flex-1 flex items-start justify-center p-6 md:p-10 overflow-y-auto">
+             <StylePickerCard
+                onSubmit={(prefs) => {
+                  // Match the prefs.theme to a WORKBOOK_STYLES entry for backward
+                  // compatibility with the existing chat handler.
+                  const style = WORKBOOK_STYLES[0];
+                  onSelectStyle?.(style, undefined, prefs);
+                }}
+             />
           </div>
         ) : workbook ? (
           <div className="relative flex-1 flex flex-col overflow-hidden">

@@ -1,4 +1,5 @@
-import { Workbook } from './types';
+import { Workbook, StylePrefs } from './types';
+import { PRINT_THEMES_CSS, DENSITY_CSS_ALL, getPrintTheme } from './generation/print_themes';
 
 export function workbookToMarkdown(workbook: Workbook): string {
   let md = `# ${workbook.title}\n\n`;
@@ -261,23 +262,37 @@ export function pageToHTMLStandalone(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${escapeHtml(workbook.title)} — ${escapeHtml(page.title)}</title>
-<style>${PRINT_CSS}</style>
+<style>${PRINT_CSS}
+${PRINT_THEMES_CSS}
+${DENSITY_CSS_ALL}</style>
 </head>
-<body>
+<body class="${bodyClassesFor(workbook.stylePrefs)}">
 ${renderPageSection(workbook, page, pageIndex)}
 </body>
 </html>`;
+}
+
+function bodyClassesFor(prefs?: StylePrefs): string {
+  const theme = getPrintTheme(prefs?.theme);
+  const density = prefs?.density ?? 'balanced';
+  return `theme-${theme.id} density-${density}`;
 }
 
 /**
  * Renders the whole workbook as one HTML document, with every page as its
  * own A4 `.page` block and an explicit CSS page-break between them.
  * Shared by the HTML export and the PDF export.
+ *
+ * If `workbook.stylePrefs` is set, the matching theme + density classes are
+ * applied on `<body>` so the 6 locked print themes in
+ * `lib/generation/print_themes.ts` take effect.
  */
 export function workbookToHTMLStandalone(workbook: Workbook): string {
   const pagesHtml = workbook.pages
     .map((page, i) => renderPageSection(workbook, page, i))
     .join('\n');
+
+  const bodyClass = bodyClassesFor(workbook.stylePrefs);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -285,9 +300,11 @@ export function workbookToHTMLStandalone(workbook: Workbook): string {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${escapeHtml(workbook.title)}</title>
-<style>${PRINT_CSS}</style>
+<style>${PRINT_CSS}
+${PRINT_THEMES_CSS}
+${DENSITY_CSS_ALL}</style>
 </head>
-<body>
+<body class="${bodyClass}">
 ${pagesHtml}
 </body>
 </html>`;

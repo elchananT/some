@@ -120,6 +120,10 @@ export function useEduSpark() {
       setProgress(5);
       setBreadcrumbs([]);
       // Seed an empty shell so the UI shows the workbook card immediately.
+      // Preserve `stylePrefs` from any prior workbook state (set by the
+      // StylePickerCard before generation starts) so the exporter can pick
+      // the right locked print theme.
+      const preservedStylePrefs = workbook?.stylePrefs;
       const seed: Workbook = {
         id: uuidv4(),
         title: args.title,
@@ -131,6 +135,7 @@ export function useEduSpark() {
         overallStyle: args.overallStyle,
         pages: [],
         outline: 'Generated conversationally.',
+        stylePrefs: preservedStylePrefs,
       };
       setWorkbook(seed);
 
@@ -158,7 +163,7 @@ export function useEduSpark() {
         },
       });
 
-      setWorkbook(finalWorkbook);
+      setWorkbook({ ...finalWorkbook, stylePrefs: preservedStylePrefs ?? finalWorkbook.stylePrefs });
       setProgress(100);
       setStep('complete');
       setAgentStatus(null);
@@ -168,7 +173,7 @@ export function useEduSpark() {
       setAgentStatus('Error during generation.');
       setStep('idle');
     }
-  }, []);
+  }, [workbook]);
 
   const handleSendMessage = useCallback(async (customText?: string) => {
     const textToSend = customText || input;
