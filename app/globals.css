@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-sans, 'Inter', system-ui, sans-serif);
+  --font-mono: var(--font-mono);
+  --font-serif: var(--font-serif, 'Source Serif 4', 'Tiempos', Georgia, serif);
+
+  /* Claude-style warm paper palette */
+  --color-bg: #FAF9F6;
+  --color-surface: #FFFFFF;
+  --color-sidebar: #F3F1ED;
+  --color-border: #E8E4DC;
+  --color-ink: #1F1F1C;
+  --color-accent: #CC785C; /* terracotta */
+  --color-muted: #7A756B;
+}
+
+@layer base {
+  body {
+    @apply bg-bg text-ink selection:bg-accent/20 selection:text-accent font-sans antialiased;
+  }
+}
+
+@layer components {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(140, 135, 126, 0.2);
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(140, 135, 126, 0.4);
+  }
+}
+
+.workbook-page svg {
+  @apply max-w-full h-auto;
+}
+
+/* Print simulation styling */
+@media print {
+  body {
+    background: white;
+  }
+  .workbook-page {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    page-break-after: always;
+  }
+}

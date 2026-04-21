@@ -1,0 +1,10 @@
+node_modules
+.next
+.vercel
+.env*
+!.env.example
+tsconfig.tsbuildinfo
+next-env.d.ts
+/tmp.txt
+.DS_Store
+.npm-cache
