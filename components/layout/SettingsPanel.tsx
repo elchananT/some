@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type PanInfo } from 'framer-motion';
 import { X, Eye, EyeOff, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { readCreds, writeCreds, type ProviderCredentials } from '@/lib/ai/keys';
 import { getProvider, AVAILABLE_PROVIDERS, setActiveProviderId, getActiveProviderId } from '@/lib/providers';
 import type { ProviderId, PingResult } from '@/lib/providers/types';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface SettingsPanelProps {
   open: boolean;
@@ -19,6 +20,7 @@ const OPENAI_MODELS = ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'];
 const ANTHROPIC_MODELS = ['claude-3-5-sonnet-latest', 'claude-3-5-haiku-latest'];
 
 export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
+  const isMobile = useIsMobile();
   const [creds, setCreds] = useState<ProviderCredentials>(() => readCreds());
   const [activeProvider, setActiveProvider] = useState<ProviderId>('mock');
   const [showGeminiKey, setShowGeminiKey] = useState(false);
@@ -85,13 +87,34 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
             key="settings-panel"
             role="dialog"
             aria-label="Settings"
-            className="fixed top-0 right-0 h-full w-full sm:w-[440px] bg-[var(--color-surface,#ffffff)] border-l border-[var(--color-border,#E8E4DC)] z-50 shadow-2xl flex flex-col"
-            initial={{ x: 480 }}
-            animate={{ x: 0 }}
-            exit={{ x: 480 }}
+            // Mobile: bottom sheet (max 92svh), rounded top, drag-down to dismiss.
+            // Desktop: right-side drawer, unchanged.
+            className={
+              isMobile
+                ? 'fixed left-0 right-0 bottom-0 max-h-[92svh] h-[92svh] bg-[var(--color-surface,#ffffff)] border-t border-[var(--color-border,#E8E4DC)] rounded-t-2xl z-50 shadow-2xl flex flex-col touch-pan-y'
+                : 'fixed top-0 right-0 h-full w-full sm:w-[440px] bg-[var(--color-surface,#ffffff)] border-l border-[var(--color-border,#E8E4DC)] z-50 shadow-2xl flex flex-col'
+            }
+            initial={isMobile ? { y: '100%' } : { x: 480 }}
+            animate={isMobile ? { y: 0 } : { x: 0 }}
+            exit={isMobile ? { y: '100%' } : { x: 480 }}
             transition={{ type: 'spring', stiffness: 260, damping: 28 }}
+            drag={isMobile ? 'y' : false}
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.4 }}
+            onDragEnd={(_, info: PanInfo) => {
+              // Dismiss if the user dragged more than ~120px OR flicked fast downward.
+              if (isMobile && (info.offset.y > 120 || info.velocity.y > 600)) {
+                onClose();
+              }
+            }}
           >
-            <header className="flex items-center justify-between px-6 py-5 border-b border-[var(--color-border,#E8E4DC)]">
+            {/* Mobile drag handle — acts as the visual affordance for dragging the sheet down. */}
+            {isMobile && (
+              <div className="pt-2 pb-1 flex justify-center shrink-0" aria-hidden>
+                <div className="h-1.5 w-10 rounded-full bg-[var(--color-border,#E8E4DC)]" />
+              </div>
+            )}
+            <header className="flex items-center justify-between px-6 py-4 sm:py-5 border-b border-[var(--color-border,#E8E4DC)]">
               <div>
                 <h2 className="text-lg font-serif text-[var(--color-ink,#1F1F1C)]">Settings</h2>
                 <p className="text-xs text-[var(--color-muted,#7A756B)] mt-1">

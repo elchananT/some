@@ -5,7 +5,7 @@ export function workbookToMarkdown(workbook: Workbook): string {
   md += `**Subject:** ${workbook.subject}\n`;
   md += `**Level:** ${workbook.level}\n`;
   md += `**Region:** ${workbook.region}\n\n`;
-  
+
   if (workbook.outline) {
     md += `## Outline\n${workbook.outline}\n\n`;
   }
@@ -26,17 +26,17 @@ export function workbookToMarkdown(workbook: Workbook): string {
 
 export function workbookToText(workbook: Workbook): string {
   let text = `${workbook.title.toUpperCase()}\n`;
-  text += `=".=".=".=".=".=".=".=".=".=".=".=".=".=".=".=".=".=".=".=".=".=".=".\n\n`;
+  text += `${'='.repeat(60)}\n\n`;
   text += `Subject: ${workbook.subject}\n`;
   text += `Level: ${workbook.level}\n`;
   text += `Region: ${workbook.region}\n\n`;
 
   workbook.pages.forEach((page, index) => {
-    text += `----------------------------------------------------------\n`;
+    text += `${'-'.repeat(60)}\n`;
     text += `PAGE ${index + 1}: ${page.title.toUpperCase()}\n`;
     text += `TYPE: ${page.type.toUpperCase()}\n`;
-    text += `----------------------------------------------------------\n\n`;
-    
+    text += `${'-'.repeat(60)}\n\n`;
+
     const plainContent = page.content.replace(/<[^>]*>?/gm, '');
     text += `${plainContent}\n\n`;
   });
@@ -44,145 +44,251 @@ export function workbookToText(workbook: Workbook): string {
   return text;
 }
 
-export function workbookToHTMLStandalone(workbook: Workbook): string {
-  const pagesHtml = workbook.pages.map((page, i) => `
-    <section class="page" id="page-${i+1}">
-      <header>
-        <div class="page-number">0${i+1}</div>
-        <h1>${page.title}</h1>
-        <div class="page-type">${page.type}</div>
+/**
+ * Shared print CSS used by the standalone HTML export and the PDF export.
+ * Uses ONLY system fonts so it works offline and in html2pdf/html2canvas
+ * headless rendering (no external network fetch for fonts).
+ *
+ * Each `.page` is a fixed A4 block (210mm x 297mm) with `page-break-after:always`,
+ * so html2pdf.js + the `pagebreak.mode: ['css','legacy']` option produces
+ * one PDF page per workbook page.
+ */
+const PRINT_CSS = `
+  :root {
+    --primary: #CC785C;
+    --ink: #1F1F1C;
+    --muted: #7A756B;
+    --paper: #ffffff;
+    --rule: #E8E4DC;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: #f3f1ec;
+    font-family: Georgia, 'Times New Roman', 'Iowan Old Style', serif;
+    color: var(--ink);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .page {
+    width: 210mm;
+    height: 297mm;
+    padding: 20mm 22mm;
+    margin: 16px auto;
+    background: var(--paper);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+    position: relative;
+    display: block;
+    overflow: hidden;
+    page-break-after: always;
+    break-after: page;
+  }
+  .page:last-child { page-break-after: auto; break-after: auto; }
+
+  @page { size: A4; margin: 0; }
+
+  @media print {
+    html, body { background: #fff; }
+    .page { margin: 0; box-shadow: none; }
+  }
+
+  .page-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 12mm;
+    margin-bottom: 10mm;
+  }
+  .page-header h1 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-style: italic;
+    font-weight: 700;
+    font-size: 32pt;
+    line-height: 1.15;
+    flex: 1;
+    color: var(--ink);
+  }
+  .page-number {
+    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+    font-size: 10pt;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+  .page-type {
+    text-transform: uppercase;
+    font-size: 9pt;
+    letter-spacing: 0.22em;
+    font-weight: 700;
+    color: var(--primary);
+    white-space: nowrap;
+  }
+
+  .page-body {
+    font-size: 11pt;
+    line-height: 1.65;
+    color: var(--ink);
+  }
+  .page-body p { margin: 0 0 10pt; }
+  .page-body h2 {
+    font-family: Georgia, serif;
+    font-size: 18pt;
+    margin: 14pt 0 8pt;
+    color: var(--ink);
+  }
+  .page-body h3 {
+    font-family: Georgia, serif;
+    font-size: 14pt;
+    margin: 12pt 0 6pt;
+    color: var(--ink);
+  }
+  .page-body ul, .page-body ol { margin: 0 0 10pt 22pt; }
+  .page-body li { margin-bottom: 4pt; }
+  .page-body strong { color: var(--ink); font-weight: 700; }
+  .page-body em { color: var(--ink); }
+  .page-body code {
+    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+    font-size: 10pt;
+    background: #f3f1ec;
+    padding: 1pt 4pt;
+    border-radius: 3px;
+  }
+  .page-body pre {
+    background: #f3f1ec;
+    padding: 10pt;
+    border-radius: 6px;
+    margin: 10pt 0;
+    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+    font-size: 9.5pt;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .page-body blockquote {
+    border-left: 3px solid var(--primary);
+    padding: 2pt 0 2pt 12pt;
+    margin: 10pt 0;
+    color: var(--muted);
+    font-style: italic;
+  }
+  .page-body img { max-width: 100%; height: auto; }
+
+  .illustration {
+    margin: 14pt 0;
+    padding: 12pt;
+    background: #fafaf8;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .illustration svg { max-width: 100%; max-height: 180pt; height: auto; }
+
+  .page-footer {
+    position: absolute;
+    left: 22mm;
+    right: 22mm;
+    bottom: 12mm;
+    border-top: 1px solid var(--rule);
+    padding-top: 8pt;
+    display: flex;
+    justify-content: space-between;
+    gap: 12pt;
+    font-size: 8pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+  }
+  .page-footer .branding { color: var(--ink); }
+`.trim();
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderPageSection(
+  workbook: Workbook,
+  page: Workbook['pages'][number],
+  index: number,
+): string {
+  const pageNum = String(index + 1).padStart(2, '0');
+  return `
+    <section class="page" id="page-${index + 1}">
+      <header class="page-header">
+        <div style="display:flex;flex-direction:column;gap:4pt;flex:1;">
+          <div class="page-number">${pageNum}</div>
+          <h1>${escapeHtml(page.title)}</h1>
+        </div>
+        <div class="page-type">${escapeHtml(page.type)}</div>
       </header>
-      <main>
-        ${page.content}
+      <main class="page-body">
+        ${page.content || ''}
         ${page.svgCode ? `<div class="illustration">${page.svgCode}</div>` : ''}
       </main>
-      <footer>
-        <div class="workbook-meta">${workbook.title} &middot; ${workbook.subject} &middot; ${workbook.level}</div>
+      <footer class="page-footer">
+        <div class="workbook-meta">${escapeHtml(workbook.title)} &middot; ${escapeHtml(workbook.subject)} &middot; ${escapeHtml(workbook.level)}</div>
         <div class="branding">EduSpark &copy; 2026</div>
       </footer>
-    </section>
-  `).join('');
+    </section>`;
+}
 
-  return `
-<!DOCTYPE html>
+/**
+ * Renders ONE workbook page as its own self-contained HTML document.
+ * Useful when the user wants a per-page HTML export.
+ */
+export function pageToHTMLStandalone(
+  workbook: Workbook,
+  pageIndex: number,
+): string {
+  const page = workbook.pages[pageIndex];
+  if (!page) return '';
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${workbook.title}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Playfair+Display:ital,wght@0,900;1,900&family=JetBrains+Mono&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --primary: #d44d29;
-            --ink: #1a1a1a;
-            --paper: #ffffff;
-            --shadow: rgba(0,0,0,0.1);
-        }
-        
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        
-        body {
-            background: #f5f5f5;
-            font-family: 'Inter', sans-serif;
-            color: var(--ink);
-            line-height: 1.6;
-        }
-
-        .page {
-            width: 210mm;
-            min-height: 297mm;
-            padding: 25mm;
-            margin: 20px auto;
-            background: white;
-            box-shadow: 0 10px 40px var(--shadow);
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        @media print {
-            body { background: white; }
-            .page { margin: 0; box-shadow: none; page-break-after: always; }
-        }
-
-        header {
-            border-bottom: 2px solid var(--ink);
-            padding-bottom: 1.5rem;
-            margin-bottom: 2rem;
-            display: flex;
-            align-items: flex-end;
-            justify-content: justify-between;
-        }
-
-        header h1 {
-            font-family: 'Playfair Display', serif;
-            font-style: italic;
-            font-size: 2.5rem;
-            flex: 1;
-        }
-
-        .page-number {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.8rem;
-            font-weight: 800;
-            opacity: 0.3;
-            margin-bottom: 0.5rem;
-        }
-
-        .page-type {
-            text-transform: uppercase;
-            font-size: 0.7rem;
-            letter-spacing: 0.2em;
-            font-weight: 800;
-            color: var(--primary);
-        }
-
-        main { flex: 1; }
-        
-        main h2, main h3 {
-            font-family: 'Playfair Display', serif;
-            margin-top: 2rem;
-            margin-bottom: 1rem;
-        }
-
-        .illustration {
-            margin: 2rem 0;
-            padding: 2rem;
-            background: #fafafa;
-            border-radius: 20px;
-            display: flex;
-            justify-content: center;
-        }
-
-        .illustration svg { max-width: 100%; height: auto; }
-
-        footer {
-            margin-top: 3rem;
-            border-top: 1px solid #eee;
-            padding-top: 1.5rem;
-            display: flex;
-            justify-content: justify-between;
-            font-size: 0.7rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: #ababab;
-        }
-
-        .branding { color: var(--ink); }
-
-        /* Typography spacing */
-        p { margin-bottom: 1rem; }
-        ul, ol { margin-left: 1.5rem; margin-bottom: 1.5rem; }
-        li { margin-bottom: 0.5rem; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${escapeHtml(workbook.title)} — ${escapeHtml(page.title)}</title>
+<style>${PRINT_CSS}</style>
 </head>
 <body>
-    ${pagesHtml}
+${renderPageSection(workbook, page, pageIndex)}
 </body>
-</html>
-  `;
+</html>`;
+}
+
+/**
+ * Renders the whole workbook as one HTML document, with every page as its
+ * own A4 `.page` block and an explicit CSS page-break between them.
+ * Shared by the HTML export and the PDF export.
+ */
+export function workbookToHTMLStandalone(workbook: Workbook): string {
+  const pagesHtml = workbook.pages
+    .map((page, i) => renderPageSection(workbook, page, i))
+    .join('\n');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${escapeHtml(workbook.title)}</title>
+<style>${PRINT_CSS}</style>
+</head>
+<body>
+${pagesHtml}
+</body>
+</html>`;
 }

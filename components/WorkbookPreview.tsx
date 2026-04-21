@@ -30,8 +30,14 @@ export default function WorkbookPreview({ workbook: initialWorkbook }: { workboo
 
   const handleExport = async () => {
     setIsExporting(true);
-    await exportToPDF('workbook-container', `${workbook.title.replace(/\s+/g, '_')}_Workbook.pdf`);
-    setIsExporting(false);
+    try {
+      // Pass the workbook directly so the exporter can render the clean,
+      // print-optimized HTML (one A4 page per workbook page) instead of
+      // screenshotting the live editor DOM.
+      await exportToPDF(workbook, `${workbook.title.replace(/\s+/g, '_')}_Workbook.pdf`);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleExportDocx = async () => {

@@ -108,22 +108,45 @@ export default function StudioView({ workbook, onUpdateWorkbook, onExit }: Studi
     if (selectedBlockId === id) setSelectedBlockId(null);
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     setIsExporting(true);
-    const element = document.createElement('div');
-    element.innerHTML = workbookToHTMLStandalone(workbook);
-    
-    const opt = {
-      margin: 10,
-      filename: `${workbook.title.toLowerCase().replace(/\s+/g, '_')}.pdf`,
-      image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const }
-    };
+    try {
+      // Render the whole workbook HTML into an off-screen, sized container.
+      // Giving html2pdf a real layout context avoids the "everything crammed
+      // into one half page" look we get when handing it a detached element.
+      const html = workbookToHTMLStandalone(workbook);
+      const host = document.createElement('div');
+      host.style.position = 'fixed';
+      host.style.left = '-10000px';
+      host.style.top = '0';
+      host.style.width = '210mm';
+      host.style.background = '#ffffff';
+      host.innerHTML = html;
+      document.body.appendChild(host);
 
-    html2pdf().set(opt).from(element).save().then(() => {
+      const opt = {
+        margin: 0,
+        filename: `${workbook.title.toLowerCase().replace(/\s+/g, '_')}.pdf`,
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          windowWidth: 794, // 210mm @ 96dpi
+        },
+        jsPDF: {
+          unit: 'mm' as const,
+          format: 'a4' as const,
+          orientation: 'portrait' as const,
+        },
+        pagebreak: { mode: ['css', 'legacy'] as const, before: '.page' },
+      };
+
+      await html2pdf().set(opt).from(host).save();
+      host.remove();
+    } finally {
       setIsExporting(false);
-    });
+    }
   };
 
   const handleExportHTML = () => {
