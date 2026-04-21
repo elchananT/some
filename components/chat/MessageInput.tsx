@@ -8,7 +8,8 @@ import {
   setActiveProviderId,
   type ProviderId,
 } from '@/lib/providers';
-import { getModel, hasUsableCredential } from '@/lib/ai/keys';
+import { getModel, hasUsableCredential, setModel } from '@/lib/ai/keys';
+import { modelsFor, labelForModel } from '@/lib/ai/model_catalog';
 
 interface MessageInputProps {
   input: string;
@@ -29,7 +30,7 @@ function providerLabel(id: ProviderId): string {
 
 function modelLabel(id: ProviderId): string {
   if (id === 'mock') return 'demo';
-  return getModel(id) ?? '';
+  return labelForModel(id, getModel(id));
 }
 
 export default function MessageInput({
@@ -107,12 +108,13 @@ export default function MessageInput({
     e.target.value = '';
   };
 
-  const pickProvider = (id: ProviderId) => {
+  const pickModel = (id: ProviderId, modelId: string) => {
     setActiveProviderId(id);
+    if (modelId && id !== 'mock') setModel(id, modelId);
     setActiveProvider(id);
     setIsModelMenuOpen(false);
     try {
-      window.dispatchEvent(new CustomEvent('eduspark:provider-changed', { detail: { id } }));
+      window.dispatchEvent(new CustomEvent('eduspark:provider-changed', { detail: { id, modelId } }));
     } catch {
       /* ignore */
     }
@@ -246,42 +248,52 @@ export default function MessageInput({
             </button>
 
             {isModelMenuOpen && (
-              <div className="absolute bottom-full mb-2 left-0 bg-white border border-[var(--color-border)] rounded-2xl shadow-2xl p-2 flex flex-col gap-0.5 min-w-[220px] z-[60] animate-in fade-in slide-in-from-bottom-2">
-                {availableProviders.map((p) => {
-                  const isActive = p.id === activeProvider;
-                  const m = modelLabel(p.id);
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => pickProvider(p.id)}
-                      className={`flex flex-col items-start gap-0.5 p-3 text-sm font-medium rounded-xl transition-colors text-left ${
-                        isActive
-                          ? 'bg-[var(--color-sidebar)] text-[var(--color-ink)]'
-                          : 'text-[var(--color-ink)] hover:bg-[var(--color-sidebar)]'
-                      }`}
-                    >
-                      <span>
-                        {p.label}
-                        {isActive ? (
-                          <span className="ml-2 text-[10px] uppercase tracking-widest text-[var(--color-accent)]">
-                            active
-                          </span>
-                        ) : null}
-                      </span>
-                      {m ? (
-                        <span className="text-[11px] font-normal text-[var(--color-muted)]">
-                          {m}
-                        </span>
-                      ) : null}
-                    </button>
-                  );
-                })}
+              <div className="absolute bottom-full mb-2 left-0 bg-white border border-[var(--color-border)] rounded-2xl shadow-2xl p-2 flex flex-col gap-0.5 min-w-[260px] max-h-[360px] overflow-y-auto custom-scrollbar z-[60] animate-in fade-in slide-in-from-bottom-2">
                 {availableProviders.length === 0 && (
                   <p className="p-3 text-xs text-[var(--color-muted)]">
-                    No providers configured yet.
+                    No providers configured yet — open Settings from the sidebar.
                   </p>
                 )}
+                {availableProviders.map((p) => {
+                  const activeModel = getModel(p.id);
+                  const models = modelsFor(p.id);
+                  return (
+                    <div key={p.id} className="flex flex-col">
+                      <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-muted)]">
+                        {p.label}
+                      </div>
+                      {models.map((m) => {
+                        const isActive = p.id === activeProvider && m.id === activeModel;
+                        return (
+                          <button
+                            key={`${p.id}:${m.id}`}
+                            type="button"
+                            onClick={() => pickModel(p.id, m.id)}
+                            className={`flex items-center justify-between gap-3 px-3 py-2 text-sm font-medium rounded-xl transition-colors text-left ${
+                              isActive
+                                ? 'bg-[var(--color-sidebar)] text-[var(--color-ink)]'
+                                : 'text-[var(--color-ink)] hover:bg-[var(--color-sidebar)]'
+                            }`}
+                          >
+                            <span className="flex items-center gap-2">
+                              {m.label}
+                              {isActive ? (
+                                <span className="text-[10px] uppercase tracking-widest text-[var(--color-accent)]">
+                                  active
+                                </span>
+                              ) : null}
+                            </span>
+                            {m.badge ? (
+                              <span className="text-[10px] font-normal text-[var(--color-muted)] uppercase tracking-wider">
+                                {m.badge}
+                              </span>
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

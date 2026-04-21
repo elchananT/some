@@ -2,8 +2,9 @@
 
 import React from 'react';
 import { motion } from 'motion/react';
-import { History, Plus, MessageSquare, Trash2, X } from 'lucide-react';
+import { History, Plus, MessageSquare, Trash2, X, Settings as SettingsIcon } from 'lucide-react';
 import { Conversation } from '@/lib/types';
+import SettingsPanel from '@/components/layout/SettingsPanel';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export default function Sidebar({
   onDeleteConversation,
   onNewConversation,
 }: SidebarProps) {
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
   return (
     <motion.aside
       initial={false}
@@ -95,7 +97,22 @@ export default function Sidebar({
             </motion.div>
           ))}
         </div>
+
+        {/* Footer: Settings entry (header no longer carries one). */}
+        <div className="pt-4 mt-2 border-t border-[var(--color-border)]">
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[var(--color-ink)] hover:bg-[var(--color-sidebar)] transition-colors"
+          >
+            <SettingsIcon size={16} className="text-[var(--color-muted)]" />
+            <span>Settings</span>
+            <span className="ml-auto text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
+              API keys · tools
+            </span>
+          </button>
+        </div>
       </div>
+      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </motion.aside>
   );
 }

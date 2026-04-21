@@ -115,6 +115,13 @@ export function getModel(provider: ProviderId): string | undefined {
   return undefined;
 }
 
+export function setModel(provider: ProviderId, model: string): void {
+  if (provider === 'gemini') updateProviderCreds('gemini', { model });
+  else if (provider === 'openai') updateProviderCreds('openai', { model });
+  else if (provider === 'ollama') updateProviderCreds('ollama', { model });
+  else if (provider === 'anthropic') updateProviderCreds('anthropic', { model });
+}
+
 export function getBaseURL(provider: ProviderId): string | undefined {
   const creds = readCreds();
   if (provider === 'openai') return creds.openai?.baseURL;

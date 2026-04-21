@@ -1,9 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Menu, Plus, GraduationCap, Languages, Settings as SettingsIcon } from 'lucide-react';
-import ProviderSwitcher from './ProviderSwitcher';
-import SettingsPanel from './SettingsPanel';
+import React from 'react';
+import { Menu, Plus, GraduationCap } from 'lucide-react';
 
 interface HeaderProps {
   isSidebarOpen: boolean;
@@ -14,27 +12,28 @@ interface HeaderProps {
   setLayoutDirection: (dir: 'ltr' | 'rtl') => void;
 }
 
-export default function Header({ 
-  isSidebarOpen, 
-  setIsSidebarOpen, 
-  onNewConversation, 
-  hasArtifact,
-  layoutDirection,
-  setLayoutDirection
+// Intentionally minimal: hamburger + logo (desktop only) + New Chat.
+// Settings moved to the Sidebar footer; provider switcher moved to the
+// composer model chip; RTL toggle removed (auto-detect from text direction).
+export default function Header({
+  isSidebarOpen,
+  setIsSidebarOpen,
+  onNewConversation,
 }: HeaderProps) {
-  const [settingsOpen, setSettingsOpen] = useState(false);
   return (
-    <header className="px-6 py-4 flex items-center justify-between border-b border-[var(--color-border)] bg-white z-40 shrink-0">
-      <div className="flex items-center gap-4">
-        <button 
+    <header className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between border-b border-[var(--color-border)] bg-white z-40 shrink-0">
+      <div className="flex items-center gap-3 md:gap-4">
+        <button
           id="hamburger-menu"
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
           className={`p-2.5 rounded-xl transition-all active:scale-95 text-[var(--color-muted)] hover:text-[var(--color-ink)] ${isSidebarOpen ? 'bg-[var(--color-sidebar)] text-[var(--color-ink)]' : 'hover:bg-[var(--color-sidebar)]'}`}
-          title={isSidebarOpen ? "Close Menu" : "Open Menu"}
+          title={isSidebarOpen ? 'Close menu' : 'Open menu'}
+          aria-label={isSidebarOpen ? 'Close menu' : 'Open menu'}
         >
           <Menu size={22} strokeWidth={2} />
         </button>
-        <div className="flex items-center gap-3">
+        {/* Logo: desktop only (hidden on mobile to save space). */}
+        <div className="hidden md:flex items-center gap-3">
           <div className="w-9 h-9 bg-[var(--color-ink)] rounded-xl flex items-center justify-center text-white shadow-lg shadow-black/10">
             <GraduationCap size={20} />
           </div>
@@ -44,32 +43,15 @@ export default function Header({
           </div>
         </div>
       </div>
-      
-      <div className="flex items-center gap-3">
-        <ProviderSwitcher />
+
+      <div className="flex items-center gap-2">
         <button
-          onClick={() => setSettingsOpen(true)}
-          className="p-2.5 rounded-xl transition-all active:scale-95 text-[var(--color-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-sidebar)]"
-          title="Settings"
-          aria-label="Open Settings"
-        >
-          <SettingsIcon size={18} />
-        </button>
-        <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-        <button 
-          onClick={() => setLayoutDirection(layoutDirection === 'ltr' ? 'rtl' : 'ltr')}
-          className={`flex items-center gap-2 p-2.5 rounded-xl transition-all active:scale-95 text-xs font-bold uppercase tracking-widest ${layoutDirection === 'rtl' ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]' : 'text-[var(--color-muted)] hover:bg-[var(--color-sidebar)] hover:text-[var(--color-ink)]'}`}
-          title="Switch Text Direction"
-        >
-          <Languages size={18} />
-          <span className="hidden md:inline">{layoutDirection === 'rtl' ? 'Hebrew/RTL' : 'English/LTR'}</span>
-        </button>
-        <button 
           onClick={onNewConversation}
-          className="flex items-center gap-2.5 px-4 py-2 bg-[var(--color-sidebar)] hover:bg-[#eee] border border-[var(--color-border)] rounded-xl transition-all text-xs font-bold uppercase tracking-widest text-[var(--color-ink)] hover:text-[var(--color-ink)] active:scale-95"
+          className="flex items-center gap-2 px-3 md:px-4 py-2 bg-[var(--color-sidebar)] hover:bg-[var(--color-border)] border border-[var(--color-border)] rounded-xl transition-all text-xs font-bold uppercase tracking-widest text-[var(--color-ink)] active:scale-95"
+          title="New conversation"
         >
           <Plus size={16} />
-          <span className="hidden sm:inline">New Build</span>
+          <span className="hidden sm:inline">New Chat</span>
         </button>
       </div>
     </header>
