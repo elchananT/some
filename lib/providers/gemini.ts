@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type, GenerateContentConfig } from '@google/genai';
-import { BuildWorkbookArgs, ChatMessage, Workbook } from '@/lib/types';
+import { BuildWorkbookArgs, ChatMessage, StylePrefs, Workbook } from '@/lib/types';
+import { buildContentPagePrompt } from '@/lib/authoring';
 import { WORKBOOK_STYLES } from '@/lib/themes';
 import { AIProvider, ChatStreamChunk, PingResult } from './types';
 import { getKey, getModel } from '@/lib/ai/keys';
@@ -248,10 +249,11 @@ async function generateContentPage(
   title: string,
   objective: string,
   type: string,
-  context: string
+  context: string,
+  stylePrefs?: StylePrefs
 ): Promise<string> {
   assertKey();
-  const prompt = `Create a ${type} page titled "${title}". Objective: ${objective}. Context: ${context}. Return clean HTML inside a <div>.`;
+  const prompt = buildContentPagePrompt({ title, objective, type, context, stylePrefs });
   const res = await withBackoff(() =>
     makeClient().models.generateContent({ model: utilModel(), contents: prompt })
   );

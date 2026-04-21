@@ -13,7 +13,8 @@
  * `geminiProvider.chatStream`, so `ai_stream.ts` and the rest of the pipeline
  * stay untouched.
  */
-import type { BuildWorkbookArgs, ChatMessage, Workbook } from '@/lib/types';
+import type { BuildWorkbookArgs, ChatMessage, StylePrefs, Workbook } from '@/lib/types';
+import { buildContentPagePrompt } from '@/lib/authoring';
 import { AIProvider, ChatStreamChunk, PingResult } from './types';
 import { getKey, getModel } from '@/lib/ai/keys';
 import { classifyError } from '@/lib/ai/errors';
@@ -193,11 +194,12 @@ async function generateContentPage(
   title: string,
   objective: string,
   type: string,
-  context: string
+  context: string,
+  stylePrefs?: StylePrefs
 ): Promise<string> {
   const text = await simpleText(
-    `Create a ${type} page titled "${title}". Objective: ${objective}. Context: ${context}.`,
-    'You output clean HTML only, wrapped in a single <div>.'
+    buildContentPagePrompt({ title, objective, type, context, stylePrefs }),
+    'You output clean HTML only, wrapped in a single <div>. No markdown fences.'
   );
   return text || `<div><h2>${title}</h2><p>${objective}</p></div>`;
 }

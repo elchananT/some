@@ -112,17 +112,16 @@ async function generateContentPage(
   title: string,
   objective: string,
   type: string,
-  context: string
+  context: string,
+  stylePrefs?: import('@/lib/types').StylePrefs
 ): Promise<string> {
   const sys =
-    'You are an educational content author. Output clean HTML only, wrapped in a single <div>.';
-  const prompt = `Create a ${type} page titled "${title}".
-Objective: ${objective}
-Context: ${context}
-If this is an exercise page, include 5 numbered questions AND an answer key.`;
+    'You are an educational content author. Output clean HTML only, wrapped in a single <div>. No markdown fences.';
+  const { buildContentPagePrompt } = await import('@/lib/authoring');
+  const prompt = buildContentPagePrompt({ title, objective, type, context, stylePrefs });
   const out = await ollamaGenerate(prompt, sys);
   if (out && out.includes('<')) return out;
-  return mockProvider.generateContentPage(title, objective, type, context);
+  return mockProvider.generateContentPage(title, objective, type, context, stylePrefs);
 }
 
 async function generateSVGIllustration(

@@ -139,7 +139,11 @@ export function useEduSpark() {
       };
       setWorkbook(seed);
 
-      const { workbook: finalWorkbook } = await runPipeline(args, {
+      // Thread stylePrefs into build args so providers can tailor the
+      // authoring rubric (tone + density + allowed question types).
+      const argsWithPrefs = { ...args, stylePrefs: preservedStylePrefs };
+
+      const { workbook: finalWorkbook } = await runPipeline(argsWithPrefs, {
         onStage: stage => setStep(stage),
         onBreadcrumb: label => setBreadcrumbs(prev => [...prev, label]),
         onPhase: text => {

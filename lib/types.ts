@@ -109,5 +109,6 @@ export interface BuildWorkbookArgs {
   illustrationStyle: string;
   colorPalette: string;
   overallStyle?: string;
+  stylePrefs?: StylePrefs;
   pages: { title: string; objective: string; type: 'content' | 'exercise' }[];
 }

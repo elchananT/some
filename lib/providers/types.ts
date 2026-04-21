@@ -1,4 +1,4 @@
-import { BuildWorkbookArgs, ChatMessage, Roadmap, Workbook } from '@/lib/types';
+import { BuildWorkbookArgs, ChatMessage, Roadmap, StylePrefs, Workbook } from '@/lib/types';
 import type { AIErrorKind } from '@/lib/ai/errors';
 
 export type ProviderId = 'mock' | 'gemini' | 'openai' | 'ollama' | 'anthropic';
@@ -32,7 +32,8 @@ export interface AIProvider {
     title: string,
     objective: string,
     type: string,
-    context: string
+    context: string,
+    stylePrefs?: StylePrefs
   ): Promise<string>;
 
   generateSVGIllustration(

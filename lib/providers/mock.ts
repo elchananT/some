@@ -213,7 +213,8 @@ async function generateContentPage(
   title: string,
   objective: string,
   type: string,
-  _context: string
+  _context: string,
+  _stylePrefs?: import('@/lib/types').StylePrefs
 ): Promise<string> {
   await sleep(120);
   return mockContentHTML(title, objective, type);

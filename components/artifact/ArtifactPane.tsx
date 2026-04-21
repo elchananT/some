@@ -6,7 +6,7 @@ import { Workbook, GeneratingStep, Roadmap, StylePrefs } from '@/lib/types';
 import WorkbookPreview from '../WorkbookPreview';
 import { WORKBOOK_STYLES, WorkbookStyle, StyleVariant } from '@/lib/themes';
 import StylePickerCard from '../chat/StylePickerCard';
-import { workbookToMarkdown, workbookToText, workbookToHTMLStandalone } from '@/lib/export_utils';
+import { workbookToMarkdown, workbookToText, workbookToHTMLStandaloneBaked } from '@/lib/export_utils';
 import dynamic from 'next/dynamic';
 const StudioView = dynamic(() => import('./StudioView'), { ssr: false });
 import StyleCard from './StyleCard';
@@ -46,27 +46,41 @@ export default function ArtifactPane({
   const [isExportMenuOpen, setIsExportMenuOpen] = React.useState(false);
   const [isStudioOpen, setIsStudioOpen] = React.useState(false);
 
-  const handleExport = (format: 'md' | 'txt' | 'html') => {
+  const handleExport = async (
+    format: 'md' | 'txt' | 'html' | 'html-teacher' | 'html-student'
+  ) => {
     if (!workbook) return;
-    
+
     let content = '';
     let mimeType = 'text/plain';
-    let ext = format;
+    let ext: string = format;
+    let suffix = '';
 
     if (format === 'md') {
       content = workbookToMarkdown(workbook);
     } else if (format === 'txt') {
       content = workbookToText(workbook);
     } else if (format === 'html') {
-      content = workbookToHTMLStandalone(workbook);
+      content = await workbookToHTMLStandaloneBaked(workbook);
       mimeType = 'text/html';
+      ext = 'html';
+    } else if (format === 'html-teacher') {
+      content = await workbookToHTMLStandaloneBaked(workbook, { audience: 'teacher' });
+      mimeType = 'text/html';
+      ext = 'html';
+      suffix = '_teacher';
+    } else if (format === 'html-student') {
+      content = await workbookToHTMLStandaloneBaked(workbook, { audience: 'student' });
+      mimeType = 'text/html';
+      ext = 'html';
+      suffix = '_student';
     }
 
     const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${workbook.title.toLowerCase().replace(/\s+/g, '_')}.${ext}`;
+    link.download = `${workbook.title.toLowerCase().replace(/\s+/g, '_')}${suffix}.${ext}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -151,6 +165,32 @@ export default function ArtifactPane({
                            <div className="flex flex-col items-start translate-y-0.5">
                              <span>Digital PDF/HTML</span>
                              <span className="text-[10px] opacity-40 font-mono">Killer format</span>
+                           </div>
+                         </button>
+
+                         <button
+                           onClick={() => handleExport('html-teacher')}
+                           className="flex items-center gap-4 p-4 text-sm font-bold text-[#1a1a1a] hover:bg-[#f5f5f5] rounded-2xl transition-all group"
+                         >
+                           <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center group-hover:bg-amber-700 group-hover:text-white transition-all">
+                             <UserCheck size={20} />
+                           </div>
+                           <div className="flex flex-col items-start translate-y-0.5">
+                             <span>Teacher copy</span>
+                             <span className="text-[10px] opacity-40 font-mono">With answer keys</span>
+                           </div>
+                         </button>
+
+                         <button
+                           onClick={() => handleExport('html-student')}
+                           className="flex items-center gap-4 p-4 text-sm font-bold text-[#1a1a1a] hover:bg-[#f5f5f5] rounded-2xl transition-all group"
+                         >
+                           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center group-hover:bg-emerald-700 group-hover:text-white transition-all">
+                             <ClipboardCheck size={20} />
+                           </div>
+                           <div className="flex flex-col items-start translate-y-0.5">
+                             <span>Student copy</span>
+                             <span className="text-[10px] opacity-40 font-mono">Answer keys hidden</span>
                            </div>
                          </button>
 

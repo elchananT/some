@@ -1,4 +1,4 @@
-import { Workbook } from './types';
+import { Workbook, StylePrefs } from './types';
 import { getProvider } from './providers';
 import { illustrate } from './illustration';
 import type { IllustrationResult } from './illustration/types';
@@ -13,10 +13,11 @@ export async function generateContentPage(
   title: string,
   objective: string,
   type: string,
-  context: string
+  context: string,
+  stylePrefs?: StylePrefs
 ): Promise<string> {
   try {
-    return await getProvider().generateContentPage(title, objective, type, context);
+    return await getProvider().generateContentPage(title, objective, type, context, stylePrefs);
   } catch (e: any) {
     console.error('generateContentPage error:', e);
     return `<div><h2>${title}</h2><p>Content unavailable (${e?.message || e}).</p></div>`;

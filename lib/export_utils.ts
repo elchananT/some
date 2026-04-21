@@ -279,6 +279,104 @@ function bodyClassesFor(prefs?: StylePrefs): string {
 }
 
 /**
+ * Bake KaTeX math + Mermaid diagrams into static HTML so the exported
+ * document prints correctly with no JS runtime. Safe to call in the browser
+ * only; on the server it's a no-op (returns the html unchanged).
+ *
+ * Looks for:
+ *   <span class="math">LaTeX</span>  /  <div class="math block">LaTeX</div>
+ *   <div class="diagram">mermaid source</div>
+ */
+export async function bakeMathAndDiagrams(html: string): Promise<string> {
+  if (typeof window === 'undefined') return html;
+
+  let out = html;
+
+  // --- KaTeX ---------------------------------------------------------------
+  if (/class="math/.test(out)) {
+    try {
+      const katex = (await import('katex')).default;
+      out = out.replace(
+        /<(span|div)\s+class="math([^"]*)"([^>]*)>([\s\S]*?)<\/\1>/g,
+        (_m, tag: string, extra: string, attrs: string, tex: string) => {
+          try {
+            const displayMode = /block/.test(extra) || tag === 'div';
+            const rendered = katex.renderToString(tex.trim(), {
+              throwOnError: false,
+              displayMode,
+              output: 'html',
+            });
+            return `<${tag} class="math${extra}"${attrs}>${rendered}</${tag}>`;
+          } catch {
+            return `<${tag} class="math${extra}"${attrs}>${tex}</${tag}>`;
+          }
+        }
+      );
+    } catch {
+      /* katex not available, leave raw LaTeX */
+    }
+  }
+
+  // --- Mermaid -------------------------------------------------------------
+  if (/class="diagram/.test(out)) {
+    try {
+      const mermaid = (await import('mermaid')).default;
+      mermaid.initialize({ startOnLoad: false, securityLevel: 'strict' });
+      const matches: { full: string; src: string }[] = [];
+      out.replace(
+        /<div\s+class="diagram"[^>]*>([\s\S]*?)<\/div>/g,
+        (full, src: string) => {
+          matches.push({ full, src });
+          return full;
+        }
+      );
+      for (let i = 0; i < matches.length; i++) {
+        const { full, src } = matches[i];
+        try {
+          const { svg } = await mermaid.render(`d${Date.now()}_${i}`, src.trim());
+          out = out.replace(full, `<div class="diagram">${svg}</div>`);
+        } catch {
+          /* leave raw */
+        }
+      }
+    } catch {
+      /* mermaid not available */
+    }
+  }
+
+  return out;
+}
+
+/** CSS appended alongside theme CSS so KaTeX glyphs render correctly. */
+const EXTRA_EXPORT_CSS = `
+  .math { font-family: 'Latin Modern Math', 'STIX Two Math', 'Cambria Math', serif; }
+  .diagram svg { max-width: 100%; height: auto; }
+  .answer-line { border-bottom: 1px solid var(--ink, #1F1F1C); height: 1.8em; margin: 0.4em 0; }
+  .answer-box { border: 1px solid var(--rule, #E8E4DC); border-radius: 4px; padding: 6pt; margin: 6pt 0; }
+  .answer-box[data-lines="2"] { min-height: 3.6em; }
+  .answer-box[data-lines="4"] { min-height: 7.2em; }
+  .answer-box[data-lines="6"] { min-height: 10.8em; }
+  .answer-box[data-lines="8"] { min-height: 14.4em; }
+  ol.mc-options { list-style: upper-alpha; padding-left: 1.5em; margin: 0.4em 0; }
+  ol.mc-options .mc-option { margin: 0.25em 0; }
+  .callout { border-left: 3px solid var(--primary, #CC785C); background: #FAF7F2; padding: 8pt 12pt; margin: 8pt 0; border-radius: 4px; }
+  .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12pt; }
+  .figure { text-align: center; margin: 12pt 0; }
+  .figure figcaption { font-size: 9pt; color: var(--muted, #7A756B); margin-top: 4pt; font-style: italic; }
+  /* Teacher copy: highlight answers/keys */
+  body.teacher-copy .answer-key,
+  body.teacher-copy .answer { background: #FFF4E5; border-left: 3px solid #CC785C; padding: 4pt 8pt; }
+  /* Student copy: hide answer-keys */
+  body.student-copy .answer-key,
+  body.student-copy .answer { display: none !important; }
+`;
+
+export interface ExportOptions {
+  /** 'teacher' shows answer keys prominently; 'student' hides them; undefined = as-written. */
+  audience?: 'teacher' | 'student';
+}
+
+/**
  * Renders the whole workbook as one HTML document, with every page as its
  * own A4 `.page` block and an explicit CSS page-break between them.
  * Shared by the HTML export and the PDF export.
@@ -287,12 +385,28 @@ function bodyClassesFor(prefs?: StylePrefs): string {
  * applied on `<body>` so the 6 locked print themes in
  * `lib/generation/print_themes.ts` take effect.
  */
-export function workbookToHTMLStandalone(workbook: Workbook): string {
+export function workbookToHTMLStandalone(
+  workbook: Workbook,
+  opts: ExportOptions = {}
+): string {
   const pagesHtml = workbook.pages
     .map((page, i) => renderPageSection(workbook, page, i))
     .join('\n');
 
-  const bodyClass = bodyClassesFor(workbook.stylePrefs);
+  const audienceClass =
+    opts.audience === 'teacher'
+      ? ' teacher-copy'
+      : opts.audience === 'student'
+        ? ' student-copy'
+        : '';
+  const bodyClass = bodyClassesFor(workbook.stylePrefs) + audienceClass;
+
+  // KaTeX CSS pulled from CDN only when math is present; keeps export
+  // self-contained for the common no-math case.
+  const needsKatex = /class="math/.test(pagesHtml);
+  const katexLink = needsKatex
+    ? '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" crossorigin="anonymous">'
+    : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -300,12 +414,25 @@ export function workbookToHTMLStandalone(workbook: Workbook): string {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${escapeHtml(workbook.title)}</title>
+${katexLink}
 <style>${PRINT_CSS}
 ${PRINT_THEMES_CSS}
-${DENSITY_CSS_ALL}</style>
+${DENSITY_CSS_ALL}
+${EXTRA_EXPORT_CSS}</style>
 </head>
 <body class="${bodyClass}">
 ${pagesHtml}
 </body>
 </html>`;
+}
+
+/**
+ * Convenience wrapper: builds the HTML and bakes math/diagrams. Browser-only.
+ */
+export async function workbookToHTMLStandaloneBaked(
+  workbook: Workbook,
+  opts: ExportOptions = {}
+): Promise<string> {
+  const html = workbookToHTMLStandalone(workbook, opts);
+  return bakeMathAndDiagrams(html);
 }

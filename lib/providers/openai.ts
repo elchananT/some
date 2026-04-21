@@ -4,7 +4,8 @@
  * the user doesn't pick OpenAI). Never sends keys to an EduSpark server —
  * requests go directly from the browser to `api.openai.com`.
  */
-import type { BuildWorkbookArgs, ChatMessage, Workbook } from '@/lib/types';
+import type { BuildWorkbookArgs, ChatMessage, StylePrefs, Workbook } from '@/lib/types';
+import { buildContentPagePrompt } from '@/lib/authoring';
 import { AIProvider, ChatStreamChunk, PingResult } from './types';
 import { getKey, getModel, getBaseURL } from '@/lib/ai/keys';
 import { classifyError } from '@/lib/ai/errors';
@@ -141,7 +142,8 @@ async function generateContentPage(
   title: string,
   objective: string,
   type: string,
-  context: string
+  context: string,
+  stylePrefs?: StylePrefs
 ): Promise<string> {
   const mod = await loadSdk();
   if (!mod || !apiKey()) return `<div><h2>${title}</h2><p>${objective}</p></div>`;
@@ -150,10 +152,10 @@ async function generateContentPage(
     const res = await client.chat.completions.create({
       model: getModel('openai') || 'gpt-4o-mini',
       messages: [
-        { role: 'system', content: 'You output clean HTML only, wrapped in a single <div>.' },
+        { role: 'system', content: 'You output clean HTML only, wrapped in a single <div>. No markdown fences.' },
         {
           role: 'user',
-          content: `Create a ${type} page titled "${title}". Objective: ${objective}. Context: ${context}.`,
+          content: buildContentPagePrompt({ title, objective, type, context, stylePrefs }),
         },
       ],
     });

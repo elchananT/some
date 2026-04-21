@@ -80,9 +80,11 @@ export async function runPipeline(
     illustrationStyle: args.illustrationStyle,
     colorPalette: args.colorPalette,
     overallStyle: args.overallStyle,
+    stylePrefs: args.stylePrefs,
     pages: new Array(total).fill(null) as unknown as WorkbookPage[],
     outline: 'Generated conversationally.',
   };
+  const stylePrefs = workbook.stylePrefs;
 
   // --- Stage: draft pages (parallel) -----------------------------------------
   hooks.onStage('composing');
@@ -95,7 +97,8 @@ export async function runPipeline(
       pageInfo.title,
       pageInfo.objective,
       pageInfo.type,
-      `Section ${i + 1} of a workbook titled "${args.title}". Focus on ${pageInfo.objective}.`
+      `Section ${i + 1} of a workbook titled "${args.title}". Focus on ${pageInfo.objective}.`,
+      stylePrefs
     );
     const page: WorkbookPage = {
       id: `page-${i}`,
@@ -132,7 +135,8 @@ export async function runPipeline(
           info.title,
           info.objective,
           info.type,
-          `Rewrite this workbook page more thoroughly. Keep the original intent but expand to full paragraphs with examples. Previous draft:\n${original.content}`
+          `Rewrite this workbook page more thoroughly. Keep the original intent but expand to full paragraphs with examples. Previous draft:\n${original.content}`,
+          stylePrefs
         );
         if (revised && revised.length > original.content.length / 2) {
           const page: WorkbookPage = { ...original, content: revised };
