@@ -9,3 +9,6 @@ next-env.d.ts
 .DS_Store
 .npm-cache
 .output.txt
+audit.json
+tsc.log
+vitest.log
