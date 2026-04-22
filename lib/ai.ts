@@ -1,4 +1,4 @@
-import { Workbook, StylePrefs } from './types';
+import { Workbook, StylePrefs, ChatMessage } from './types';
 import { getProvider } from './providers';
 import { illustrate } from './illustration';
 import type { IllustrationResult } from './illustration/types';
@@ -54,6 +54,34 @@ export async function generateIllustration(
   } catch (e) {
     console.error('generateIllustration error:', e);
     return null;
+  }
+}
+
+export async function generateChatTitle(messages: ChatMessage[]): Promise<string> {
+  try {
+    return await getProvider().generateChatTitle(messages);
+  } catch (e) {
+    console.error('generateChatTitle error:', e);
+    return 'Untitled';
+  }
+}
+
+export async function critiquePage(html: string): Promise<any> {
+  try {
+    return await getProvider().critiquePage(html);
+  } catch (e) {
+    console.error('critiquePage error:', e);
+    // Simple fallback
+    const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    const score = text.length > 200 ? 8 : 5;
+    return {
+      score,
+      reason: score < 8 ? 'Insufficient depth' : 'High quality',
+      strengths: [],
+      weaknesses: score < 8 ? ['Content is too brief'] : [],
+      recommendingRevision: score < 8,
+      actionableFix: 'Expand content with more examples.'
+    };
   }
 }
 

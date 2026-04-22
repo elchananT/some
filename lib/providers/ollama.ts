@@ -266,6 +266,29 @@ async function summarize(messages: ChatMessage[]): Promise<string> {
   return out || '';
 }
 
+async function critiquePage(html: string): Promise<any> {
+  const { CRITIQUE_PROMPT, AUTHORING_RUBRIC } = await import('@/lib/authoring');
+  const prompt = CRITIQUE_PROMPT.replace('${AUTHORING_RUBRIC}', AUTHORING_RUBRIC) + "\n\nPAGE HTML:\n" + html;
+  const sys = 'You are a Senior Pedagogical Reviewer. Output JSON only.';
+  
+  const out = await ollamaGenerate(prompt, sys);
+  try {
+    let text = out || '{}';
+    if (text.includes('```json')) text = text.split('```json')[1].split('```')[0].trim();
+    const json = JSON.parse(text);
+    return {
+      score: json.score ?? 5,
+      reason: json.weaknesses?.[0] ?? json.reason ?? 'Critique complete',
+      strengths: json.strengths ?? [],
+      weaknesses: json.weaknesses ?? [],
+      recommendingRevision: json.recommendingRevision ?? json.score < 8,
+      actionableFix: json.actionableFix ?? 'Refine pedagogical depth.'
+    };
+  } catch {
+    return mockProvider.critiquePage(html);
+  }
+}
+
 async function ping(): Promise<PingResult> {
   const start = Date.now();
   try {
@@ -302,6 +325,7 @@ export const ollamaProvider: AIProvider = {
   generateSVGIllustration,
   verifyWorkbook,
   generateChatTitle,
+  critiquePage,
   ping,
   summarize,
 };

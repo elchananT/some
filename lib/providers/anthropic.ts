@@ -345,6 +345,27 @@ async function summarize(messages: ChatMessage[]): Promise<string> {
   );
 }
 
+async function critiquePage(html: string): Promise<any> {
+  const mod = await loadSdk();
+  if (!mod || !apiKey()) return mockProvider.critiquePage(html);
+  try {
+    const { CRITIQUE_PROMPT, AUTHORING_RUBRIC } = await import('@/lib/authoring');
+    const prompt = CRITIQUE_PROMPT.replace('${AUTHORING_RUBRIC}', AUTHORING_RUBRIC) + "\n\nPAGE HTML:\n" + html;
+    const text = await simpleText(prompt, 'You are a Senior Pedagogical Reviewer. Output JSON only.');
+    const json = JSON.parse(text);
+    return {
+      score: json.score ?? 5,
+      reason: json.weaknesses?.[0] ?? json.reason ?? 'Critique complete',
+      strengths: json.strengths ?? [],
+      weaknesses: json.weaknesses ?? [],
+      recommendingRevision: json.recommendingRevision ?? json.score < 8,
+      actionableFix: json.actionableFix ?? 'Refine pedagogical depth.'
+    };
+  } catch {
+    return mockProvider.critiquePage(html);
+  }
+}
+
 export const anthropicProvider: AIProvider = {
   id: 'anthropic',
   chatStream,
@@ -353,6 +374,7 @@ export const anthropicProvider: AIProvider = {
     '<svg viewBox="0 0 500 500"><rect width="500" height="500" fill="#FAF9F6"/></svg>',
   verifyWorkbook,
   generateChatTitle,
+  critiquePage,
   ping,
   summarize,
 };

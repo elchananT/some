@@ -290,6 +290,20 @@ async function generateChatTitle(messages: ChatMessage[]): Promise<string> {
   return words || 'Untitled';
 }
 
+async function critiquePage(html: string): Promise<any> {
+  await sleep(100);
+  const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  const score = text.length > 200 ? 9 : 6;
+  return {
+    score,
+    reason: score >= 8 ? 'High quality' : 'Insufficient depth',
+    strengths: ['Clean semantic HTML', 'Matches objective'],
+    weaknesses: score < 8 ? ['Content is too brief'] : [],
+    recommendingRevision: score < 8,
+    actionableFix: 'Expand on the core concept and add an interactive example.'
+  };
+}
+
 export const mockProvider: AIProvider = {
   id: 'mock',
   chatStream,
@@ -297,4 +311,5 @@ export const mockProvider: AIProvider = {
   generateSVGIllustration,
   verifyWorkbook,
   generateChatTitle,
+  critiquePage,
 };

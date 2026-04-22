@@ -15,6 +15,7 @@ function fakeProvider(summarize?: AIProvider['summarize']): AIProvider {
     generateSVGIllustration: async () => '',
     verifyWorkbook: async () => '',
     generateChatTitle: async () => 'T',
+    critiquePage: async () => ({ score: 10, reason: 'ok', strengths: [], weaknesses: [], recommendingRevision: false, actionableFix: '' }),
     summarize,
   };
 }

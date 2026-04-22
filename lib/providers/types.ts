@@ -46,6 +46,15 @@ export interface AIProvider {
   verifyWorkbook(workbook: Workbook): Promise<string>;
 
   generateChatTitle(messages: ChatMessage[]): Promise<string>;
+  
+  critiquePage(html: string): Promise<{
+    score: number;
+    reason: string;
+    strengths: string[];
+    weaknesses: string[];
+    recommendingRevision: boolean;
+    actionableFix: string;
+  }>;
 
   /** Lightweight reachability / auth check. Implementations should be cheap. */
   ping?(): Promise<PingResult>;

@@ -404,6 +404,46 @@ async function summarize(messages: ChatMessage[]): Promise<string> {
   return res.text || '';
 }
 
+async function critiquePage(html: string): Promise<any> {
+  assertKey();
+  const { CRITIQUE_PROMPT, AUTHORING_RUBRIC } = await import('@/lib/authoring');
+  const prompt = CRITIQUE_PROMPT.replace('${AUTHORING_RUBRIC}', AUTHORING_RUBRIC) + "\n\nPAGE HTML:\n" + html;
+  
+  const res = await withBackoff((attempt) =>
+    makeClient(attempt).models.generateContent({
+      model: utilModel(),
+      contents: [{ role: 'user', parts: [{ text: prompt }] }]
+    })
+  );
+  
+  try {
+    let text = res.text || '{}';
+    if (text.includes('```json')) text = text.split('```json')[1].split('```')[0].trim();
+    const json = JSON.parse(text);
+    return {
+      score: json.score ?? 5,
+      reason: json.weaknesses?.[0] ?? json.reason ?? 'Critique complete',
+      strengths: json.strengths ?? [],
+      weaknesses: json.weaknesses ?? [],
+      recommendingRevision: json.recommendingRevision ?? json.score < 8,
+      actionableFix: json.actionableFix ?? 'Refine pedagogical depth.'
+    };
+  } catch (e) {
+    console.warn('Gemini critique parse failed:', e);
+    // Fallback to simple heuristic if AI critique fails
+    const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    const score = text.length > 200 ? 8 : 5;
+    return {
+      score,
+      reason: score < 8 ? 'Insufficient depth' : 'Pedagogically sound',
+      strengths: [],
+      weaknesses: score < 8 ? ['Content is too brief'] : [],
+      recommendingRevision: score < 8,
+      actionableFix: 'Expand content with more examples.'
+    };
+  }
+}
+
 export const geminiProvider: AIProvider = {
   id: 'gemini',
   chatStream,
@@ -411,6 +451,7 @@ export const geminiProvider: AIProvider = {
   generateSVGIllustration,
   verifyWorkbook,
   generateChatTitle,
+  critiquePage,
   ping,
   summarize,
 };

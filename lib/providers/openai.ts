@@ -333,6 +333,33 @@ async function summarize(messages: ChatMessage[]): Promise<string> {
   }
 }
 
+async function critiquePage(html: string): Promise<any> {
+  const mod = await loadSdk();
+  if (!mod || !apiKey()) return mockProvider.critiquePage(html);
+  try {
+    const { CRITIQUE_PROMPT, AUTHORING_RUBRIC } = await import('@/lib/authoring');
+    const prompt = CRITIQUE_PROMPT.replace('${AUTHORING_RUBRIC}', AUTHORING_RUBRIC) + "\n\nPAGE HTML:\n" + html;
+    const res = await withBackoff((attempt) =>
+      makeClient(mod, attempt).chat.completions.create({
+        model: getModel('openai') || 'gpt-4o-mini',
+        messages: [{ role: 'user', content: prompt }],
+        response_format: { type: 'json_object' }
+      })
+    );
+    const json = JSON.parse(res.choices[0]?.message?.content || '{}');
+    return {
+      score: json.score ?? 5,
+      reason: json.weaknesses?.[0] ?? json.reason ?? 'Critique complete',
+      strengths: json.strengths ?? [],
+      weaknesses: json.weaknesses ?? [],
+      recommendingRevision: json.recommendingRevision ?? json.score < 8,
+      actionableFix: json.actionableFix ?? 'Refine pedagogical depth.'
+    };
+  } catch {
+    return mockProvider.critiquePage(html);
+  }
+}
+
 export const openaiProvider: AIProvider = {
   id: 'openai',
   chatStream,
@@ -341,6 +368,7 @@ export const openaiProvider: AIProvider = {
     '<svg viewBox="0 0 500 500"><rect width="500" height="500" fill="#FAF9F6"/></svg>',
   verifyWorkbook,
   generateChatTitle,
+  critiquePage,
   ping,
   summarize,
 };

@@ -8,37 +8,49 @@
  */
 import type { StylePrefs, QuestionTypeId } from './types';
 
-export const AUTHORING_RUBRIC = `AUTHORING RUBRIC — self-check before you answer:
-1. Learning objective: every page opens with a Bloom's verb (identify / explain / apply / analyze / evaluate / create).
-2. Difficulty ramp: within each page or section, progress from recall → application → synthesis.
-3. Answer-key completeness: every question gets a model answer AND a 1-line explanation.
-4. MCQ quality: 4 options, 3 plausible distractors tied to real misconceptions (no "none of the above").
-5. No duplicate questions or near-duplicates across a workbook.
-6. Age/level consistency with the stated level.
-7. Factual grounding: Use your SEARCH and WIKI tools for any fact you are not 100% certain of. Ground examples in real-world data.
-8. Interactive elements: Include sections that require the student to observe, reflect, or research.
+export const AUTHORING_RUBRIC = `AUTHORING RUBRIC — absolute standards for top-tier content:
+1. Chain of Thought: ALWAYS start your response with a <thought> block. Plan the page structure, Bloom's verb, difficulty ramp, and distractor logic before writing any HTML.
+2. Learning objective: Every page must open with a Bloom's taxonomy verb (identify / explain / apply / analyze / evaluate / create).
+3. Difficulty ramp: Progress from simple recall → complex application → critical synthesis within each page.
+4. Answer-key completeness: Every question MUST have a model answer AND a 1-line pedagogical explanation.
+5. MCQ quality: Exactly 4 options. 3 MUST be plausible distractors tied to common student misconceptions. No "All of the above".
+6. Contextual Grounding: Use your tools (SEARCH, WIKI) to pull real-world data, historical dates, or scientific facts. Never hallucinate examples.
+7. Structural Variety: Use callouts, case-studies, takeaways, and grids to break up text. Avoid walls of prose.
+8. Interactive Depth: Include at least one section that requires active reflection ("Why do you think...", "Compare this to...").
 
-HTML OUTPUT VOCABULARY (use these semantic classes, nothing else):
-- <section class="page"> ONE per physical page
+HTML OUTPUT VOCABULARY (use these semantic classes ONLY):
+- <section class="page"> (The root container)
 - <header class="page-header"><h1>...</h1></header>
-- <h2>, <h3> for section titles — no inline styles
-- <ol class="mc-options"> with <li class="mc-option"> for multiple-choice
-- <div class="answer-line"></div> for a single underline
-- <div class="answer-box" data-lines="N"></div> for multi-line boxes
-- <span class="math">LaTeX...</span> for math (inline) / <div class="math block">...</div> (block)
+- <div class="thought"> (Hidden reasoning block, used for CoT - will be stripped by the app)
+- <ol class="mc-options"> with <li class="mc-option">
+- <div class="answer-line"></div>
+- <div class="answer-box" data-lines="N"></div>
+- <span class="math">...</span> / <div class="math block">...</div>
 - <div class="figure"><svg>...</svg><figcaption>...</figcaption></div>
-- <div class="callout"><strong>Note:</strong> ...</div>
-- <div class="grid-2col">...</div> for side-by-side
-- <div class="takeaway"><strong>Key Takeaway:</strong> ...</div>
+- <div class="callout">...</div>
+- <div class="grid-2col">...</div>
+- <div class="takeaway">...</div>
+- <div class="case-study">...</div>
 - <div class="glossary-item"><dt>Term</dt><dd>Definition</dd></div>
-- <div class="case-study"><h3>Case Study: ...</h3>...</div>
 
 HARD RULES:
-- NEVER emit <style>, <link>, or style="..." attributes.
-- NEVER use external images or <img src="http...">. Inline SVG only.
-- Keep each page ≤ 450 words / ≤ 25 vertical lines. If you'd overflow, split into a second page.
-- Always include a concrete example before asking a question about a concept.
-- If creating a Cover Page, use <div class="cover-content">...</div> inside the section.`;
+- Return valid HTML ONLY after the <thought> block.
+- NO preamble, NO markdown fences (unless asked for specific snippets), NO commentary outside <thought>.
+- Keep each page ≤ 450 words. If content is too long, focus on the most important sub-topic.
+- RTL/LTR: If the content is in Hebrew or Arabic, ensure the semantic structure supports RTL (though CSS handles the heavy lifting).`;
+
+export const CRITIQUE_PROMPT = `You are a Senior Pedagogical Reviewer. 
+Evaluate the following workbook page against this rubric:
+\${AUTHORING_RUBRIC}
+
+Provide a critique in JSON format:
+{
+  "score": 1-10,
+  "strengths": ["...", "..."],
+  "weaknesses": ["...", "..."],
+  "recommendingRevision": boolean,
+  "actionableFix": "One specific instruction to fix the main weakness"
+}`;
 
 export const QUESTION_TYPE_LABELS: Record<QuestionTypeId, string> = {
   mcq: 'multiple choice (4 options with distractors)',

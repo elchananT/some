@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { BuildWorkbookArgs, Workbook, WorkbookPage } from '@/lib/types';
-import { generateContentPage, generateIllustration, verifyWorkbook } from '@/lib/ai';
+import { generateContentPage, generateIllustration, verifyWorkbook, critiquePage } from '@/lib/ai';
 import { getActiveProviderId } from '@/lib/providers';
 import { runWithConcurrency } from './concurrency';
 import type { PipelineHooks } from './types';
@@ -194,11 +194,19 @@ export async function runPipeline(
       const targetIdx = i + metadataPagesCount;
       hooks.onBreadcrumb(`Drafting p${i + 1}: ${pageInfo.title}`);
       await sleep(Math.random() * 800 + 400); 
+
+      // Gather context from previously drafted pages to avoid repetition
+      const previousPageTitles = workbook.pages
+        .slice(0, targetIdx)
+        .filter(p => !!p)
+        .map(p => p.title)
+        .join(', ');
+      
       const content = await generateContentPage(
         pageInfo.title,
         pageInfo.objective,
         pageInfo.type,
-        `Section ${i + 1} of a workbook titled "${args.title}". Focus on ${pageInfo.objective}.\n\nContext:\n${workbook.outline}`,
+        `Section ${i + 1} of a workbook titled "${args.title}". Focus on ${pageInfo.objective}.\n\nContext:\n${workbook.outline}\n\nPreviously drafted pages: ${previousPageTitles}`,
         stylePrefs
       );
       const page: WorkbookPage = {
@@ -218,46 +226,51 @@ export async function runPipeline(
   await runWithConcurrency(draftTasks, cap);
 
   // --- Stage: critique & revise ---------------------------------------------
-  const weakIndices: number[] = [];
-  workbook.pages.forEach((p, i) => {
-    if (!p) return;
-    const { score, reason } = quickCritique(p.content);
-    if (score < 8) {
-      weakIndices.push(i);
-      hooks.onBreadcrumb(`Critique p${i + 1}: ${score}/10 (${reason}) · will revise`);
-    }
-  });
+  const weakPages: { index: number; fix: string; reason: string }[] = [];
+  hooks.onStage('verifying');
+  hooks.onPhase('Critiquing drafted pages against rubric');
 
-  if (weakIndices.length > 0) {
-    hooks.onPhase(`Revising ${weakIndices.length} weak page(s)`);
-    for (const i of weakIndices) {
-      const original = workbook.pages[i];
-      const info = args.pages[i];
-      hooks.onBreadcrumb(`Revising p${i + 1}: ${original.title}`);
+  for (let i = 0; i < workbook.pages.length; i++) {
+    const p = workbook.pages[i];
+    if (!p) continue;
+    hooks.onBreadcrumb(`Critiquing p${i + 1}: ${p.title}`);
+    const critique = await critiquePage(p.content);
+    if (critique.recommendingRevision || critique.score < 8) {
+      weakPages.push({ index: i, fix: critique.actionableFix, reason: critique.reason });
+      hooks.onBreadcrumb(`Critique p${i + 1}: ${critique.score}/10 · ${critique.reason}`);
+    } else {
+      hooks.onBreadcrumb(`Critique p${i + 1}: ${critique.score}/10 · Pass`);
+    }
+  }
+
+  if (weakPages.length > 0) {
+    hooks.onStage('composing');
+    hooks.onPhase(`Revising ${weakPages.length} pages`);
+    for (const item of weakPages) {
+      const original = workbook.pages[item.index];
+      const pageInfo = args.pages[item.index - metadataPagesCount] || { title: original.title, objective: '', type: 'content' };
+      hooks.onBreadcrumb(`Revising p${item.index + 1}: ${original.title}`);
       try {
         const revised = await generateContentPage(
-          info.title,
-          info.objective,
-          info.type,
-          `REVISION NEEDED: The previous draft was flagged as "${quickCritique(original.content).reason}".
-Rewrite this page to be a "top tier" learning resource. 
-Include:
-- Real-world grounding or a case study.
-- A mix of question types (e.g., matching, MCQ, open-ended).
-- A "Key Takeaway" box.
-- Clear, engaging headers.
+          original.title,
+          pageInfo.objective,
+          pageInfo.type,
+          `REVISION REQUESTED by Pedagogical Reviewer. 
+Reason: ${item.reason}
+Specific Fix: ${item.fix}
 
+Please rewrite this page to be "top tier" while strictly following the AUTHORING RUBRIC.
 Original draft for reference:
 ${original.content}`,
           stylePrefs
         );
         if (revised && revised.length > original.content.length / 2) {
           const page: WorkbookPage = { ...original, content: revised };
-          workbook.pages[i] = page;
-          hooks.onPageUpdate(i, page);
+          workbook.pages[item.index] = page;
+          hooks.onPageUpdate(item.index, page);
         }
       } catch (e) {
-        hooks.onBreadcrumb(`Revision p${i + 1} failed, keeping draft`);
+        hooks.onBreadcrumb(`Revision p${item.index + 1} failed, keeping draft`);
       }
     }
   } else {
