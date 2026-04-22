@@ -1,6 +1,6 @@
 ---
 sessionId: session-260421-183414-1o4z
-isActive: true
+isActive: false
 ---
 
 # Requirements
@@ -62,31 +62,31 @@ The pipeline already supports autonomous research, Paged.js high-fidelity export
 
 # Delivery Steps
 
-### * Step 1: Stage 1: Multi-Tiered Pedagogy & Accessibility Themes
+### ✓ Step 1: Stage 1: Multi-Tiered Pedagogy & Accessibility Themes
 - Extend `StylePrefs` with `difficulty` (Basic/Intermediate/Advanced) and `accessibility` (Standard/Dyslexia-Friendly) fields.
 - Update `lib/authoring.ts` to adjust tone, vocabulary, and font-family (e.g. OpenDyslexic) based on these new preferences.
 - Add "Standard/Dyslexia-Friendly" toggle to `StylePickerCard`.
 - Integrate difficulty selection into the drafting prompts in `lib/pipeline/index.ts`.
 
-###   Step 2: Stage 2: Deep RAG Grounding (Upload Sources)
+### ✓ Step 2: Stage 2: Deep RAG Grounding (Upload Sources)
 - Update `MessageInput.tsx` to handle file uploads (PDF/TXT/DOCX) in the `+` menu.
 - Store uploaded document context in `Conversation` or `BuildWorkbookArgs`.
 - Update the research phase in `lib/pipeline/index.ts` to prioritize user-uploaded sources over general web search when available.
 - Implement a "RAG summary" pass that extracts key facts from uploaded documents to ground the workbook generation.
 
-###   Step 3: Stage 3: Interactive Student Mode & Auto-Grading
+### ✓ Step 3: Stage 3: Interactive Student Mode & Auto-Grading
 - Add a "Student Mode" toggle to `ArtifactPane` and `WorkbookPreview`.
 - When active, transform `answer-box` and `mc-option` elements into interactive inputs.
 - Implement an `Auto-Grade` button that uses the hidden answer keys to provide instant feedback and explanations to the user.
 - Add an "Interactive HTML" export option that includes the student mode logic in a standalone file.
 
-###   Step 4: Stage 4: Visual Polish & Professional Brand Kits
+### ✓ Step 4: Stage 4: Visual Polish & Professional Brand Kits
 - Implement "Bento Grid 2.0" and "F-Pattern" layouts in `lib/authoring.ts` and `lib/types.ts`.
 - Update the AI prompts to intelligently assign content to specific grid slots based on importance (e.g. main concept in the large bento box).
 - Ensure consistent SVG illustration seeds across a single workbook run to maintain visual identity.
 - Add "School/Brand Kit" to Settings, allowing users to upload a logo and primary color that gets injected into the header of every exported page.
 
-###   Step 5: Stage 5: Professional Infrastructure (SCORM/LMS & Indexing)
+### ✓ Step 5: Stage 5: Professional Infrastructure (SCORM/LMS & Indexing)
 - Add SCORM 1.2 / xAPI export format in `lib/export_utils.ts` (wrapping the interactive student mode in a standard LMS package).
 - Implement a dynamic "Index" page for workbooks >10 pages.
 - Add "Teacher copy" vs "Student copy" toggle to the Pro PDF export flow.
