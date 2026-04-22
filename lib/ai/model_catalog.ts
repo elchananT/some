@@ -15,10 +15,9 @@ export interface ModelOption {
 
 export const MODEL_CATALOG: Partial<Record<ProviderId, ModelOption[]>> = {
   gemini: [
-    { id: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro', badge: 'Best' },
-    { id: 'gemini-3-flash', label: 'Gemini 3 Flash', badge: 'Fast' },
-    { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite', badge: 'Free' },
-    { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', badge: 'Best' },
+    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', badge: 'Fast' },
+    { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash', badge: 'Stable' },
   ],
   openai: [
     { id: 'gpt-5.4', label: 'GPT-5.4', badge: 'Best' },

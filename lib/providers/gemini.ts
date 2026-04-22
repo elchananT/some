@@ -8,7 +8,7 @@ import { classifyError, withBackoff } from '@/lib/ai/errors';
 import { geminiToolDeclarations } from '@/lib/tools/adapters';
 import { runTool } from '@/lib/tools/registry';
 
-const DEFAULT_MODEL = 'gemini-1.5-flash';
+const DEFAULT_MODEL = 'gemini-2.5-flash';
 
 function apiKey(attempt = 0): string {
   return getRotatingKey('gemini', attempt) || '';

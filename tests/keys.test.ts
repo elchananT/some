@@ -8,7 +8,7 @@ describe('keys storage', () => {
 
   it('readCreds returns defaults when nothing saved', () => {
     const creds = readCreds();
-    expect(creds.gemini?.model).toBe('gemini-1.5-flash');
+    expect(creds.gemini?.model).toBe('gemini-2.5-flash');
     expect(creds.openai?.model).toBe('gpt-4o-mini');
     expect(creds.ollama?.baseURL).toBe('http://localhost:11434');
   });
@@ -28,7 +28,7 @@ describe('keys storage', () => {
   });
 
   it('getModel falls back to default when not set', () => {
-    expect(getModel('gemini')).toBe('gemini-1.5-flash');
+    expect(getModel('gemini')).toBe('gemini-2.5-flash');
     writeCreds({ gemini: { model: 'gemini-2.5-pro' } });
     expect(getModel('gemini')).toBe('gemini-2.5-pro');
   });
@@ -49,6 +49,6 @@ describe('keys storage', () => {
   it('handles corrupted localStorage gracefully', () => {
     window.localStorage.setItem('eduspark_ai_keys_v1', 'not-json{');
     const creds = readCreds();
-    expect(creds.gemini?.model).toBe('gemini-1.5-flash');
+    expect(creds.gemini?.model).toBe('gemini-2.5-flash');
   });
 });

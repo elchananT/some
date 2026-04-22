@@ -221,7 +221,8 @@ export function getDemoConversation(): Conversation {
       density: 'balanced',
       difficulty: 'intermediate',
       accessibility: 'standard'
-    }
+    },
+    htmlTwin: "" // Will be baked if needed by the exporter
   };
 
   return {
@@ -229,7 +230,7 @@ export function getDemoConversation(): Conversation {
     title: 'Solar System Demo',
     messages: [
       { role: 'user', text: 'Create a professional workbook about the Solar System.' },
-      { role: 'model', text: "I've generated a high-fidelity 9-page workbook on the Solar System for you. This demo showcases Bento grids, KaTeX math, Mermaid diagrams, Case Studies, and a professional Brand Kit." }
+      { role: 'model', text: "I've generated a high-fidelity 9-page workbook on the Solar System for you using Gemini 2.5 Pro. This demo showcases Bento grids, KaTeX math, Mermaid diagrams, Case Studies, and a professional Brand Kit. You can view the 'book itself' in the Studio or export it as a Pro PDF." }
     ],
     workbook,
     step: 'complete',
