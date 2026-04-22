@@ -81,6 +81,10 @@ function getMockContent(title: string, objective: string, type: string): string 
     <h1>${title}</h1>
   </header>
   
+  <div class="callout">
+    <strong>Instructions:</strong> Answer all questions to the best of your ability. Use the provided math workspace for calculations.
+  </div>
+
   <div class="question">
     <h3>1. Which planet is known as the "Red Planet"?</h3>
     <ol class="mc-options">
@@ -91,23 +95,27 @@ function getMockContent(title: string, objective: string, type: string): string 
     </ol>
   </div>
 
-  <div class="question">
-    <h3>2. Describe the difference between a terrestrial planet and a gas giant.</h3>
-    <div class="answer-box" data-lines="6"></div>
+  <div class="grid-2col">
+    <div class="question">
+      <h3>2. Terrestrial vs. Gas Giant</h3>
+      <p>Describe the core difference in composition.</p>
+      <div class="answer-box" data-lines="4"></div>
+    </div>
+    <div class="question">
+      <h3>3. Planetary Weight</h3>
+      <p>Calculate weight on Mars (0.38g) for a 100kg object.</p>
+      <div class="answer-line"></div>
+    </div>
   </div>
 
-  <div class="question">
-    <h3>3. Solve the following:</h3>
-    <p>If Earth's gravity is <span class="math">1g</span> and Mars' gravity is <span class="math">0.38g</span>, how much would a 100kg astronaut weigh on Mars?</p>
-    <div class="answer-line"></div>
-  </div>
+  <div class="takeaway">Understanding planetary density is key to identifying terrestrial planets.</div>
 
   <aside class="answer-key" style="display:none">
     <strong>Answer Key:</strong>
     <ol>
       <li>B (Mars)</li>
-      <li>Terrestrial planets are rocky and solid; gas giants are primarily composed of hydrogen and helium with no solid surface.</li>
-      <li>38kg (100 * 0.38)</li>
+      <li>Terrestrial planets are rocky/solid; Gas giants are hydrogen/helium.</li>
+      <li>38kg</li>
     </ol>
   </aside>
 </section>`.trim();
@@ -229,8 +237,10 @@ export function getDemoConversation(): Conversation {
     id: 'solar-system-demo-v1',
     title: 'Solar System Demo',
     messages: [
-      { role: 'user', text: 'Create a professional workbook about the Solar System.' },
-      { role: 'model', text: "I've generated a high-fidelity 9-page workbook on the Solar System for you using Gemini 2.5 Pro. This demo showcases Bento grids, KaTeX math, Mermaid diagrams, Case Studies, and a professional Brand Kit. You can view the 'book itself' in the Studio or export it as a Pro PDF." }
+      { role: 'user', text: 'I want to create a professional, high-fidelity workbook about the Solar System for my high school students.' },
+      { role: 'model', text: "That sounds like a great project! I've researched the latest astronomical standards and proposed a 9-page roadmap below that covers everything from celestial mechanics to the Voyager missions. Does this outline look good to you?" },
+      { role: 'user', text: "Yes, the roadmap looks perfect. Let's go with the 'Scientific Paper' style and include math workspaces for the gravity section." },
+      { role: 'model', text: "Excellent choice. I'm building your 'Grand Design of Our Solar System' workbook now using Gemini 2.5 Pro. I'll include Bento grids for layouts, KaTeX for the orbital formulas, and Mermaid for the planetary diagrams. Your professional Brand Kit is also being applied." }
     ],
     workbook,
     step: 'complete',
