@@ -62,12 +62,26 @@ function conversationState(history: ChatMessage[]): {
 // --- Mock content generators ---
 
 function mockPages(topic: string): BuildWorkbookArgs['pages'] {
+  // If it's a demo or general topic, give the high-fidelity Solar System version
+  if (topic.toLowerCase().includes('solar system') || topic.toLowerCase() === 'sample topic') {
+    return [
+      { title: 'The Grand Design of Our Solar System', objective: 'Overview of the sun and the eight planets.', type: 'content' },
+      { title: 'Celestial Mechanics & Gravity', objective: 'Explain orbital motion using Newtonian physics.', type: 'content' },
+      { title: 'The Inner Planets', objective: 'Deep dive into Mercury, Venus, Earth, and Mars.', type: 'content' },
+      { title: 'Gas Giants & Ice Giants', objective: 'Comparing Jupiter, Saturn, Uranus, and Neptune.', type: 'content' },
+      { title: 'Exploration History', objective: 'Timeline of major space missions.', type: 'content' },
+      { title: 'Knowledge Check: Planets', objective: 'MCQ and short answer assessment.', type: 'exercise' },
+      { title: 'Calculating Planetary Weight', objective: 'Math problems using the gravity formula.', type: 'exercise' },
+      { title: 'Case Study: The Voyager Golden Record', objective: 'Analyzing human outreach to the stars.', type: 'content' },
+      { title: 'Glossary of Terms', objective: 'Definitions of key astronomical vocabulary.', type: 'content' },
+    ];
+  }
+
   return [
     { title: `Introduction to ${topic}`, objective: `Provide an engaging overview of ${topic}.`, type: 'content' },
     { title: 'Core Concepts', objective: 'Explain the foundational ideas with examples.', type: 'content' },
     { title: 'Guided Example', objective: 'Walk through a solved example step-by-step.', type: 'content' },
     { title: 'Practice Exercises', objective: 'Reinforce understanding with 5 graded problems.', type: 'exercise' },
-    { title: 'Challenge Problems', objective: 'Stretch thinking with 3 advanced problems.', type: 'exercise' },
     { title: 'Summary & Reflection', objective: 'Recap key takeaways and prompt reflection.', type: 'content' },
   ];
 }
@@ -87,7 +101,36 @@ function mockRoadmap(topic: string): Roadmap {
 }
 
 function mockContentHTML(title: string, objective: string, type: string): string {
-  if (type === 'exercise') {
+  const t = title.toLowerCase();
+
+  // 1. Cover Page Mock
+  if (t.includes('grand design') || t.includes('introduction')) {
+    return `
+<section class="page">
+  <div class="layout-f">
+    <div class="f-top">
+      <h1 style="font-size: 42pt; margin-top: 40mm;">${title}</h1>
+      <p style="font-size: 18pt; opacity: 0.8; margin-top: 10mm;">Exploring the wonders of our cosmic neighborhood.</p>
+    </div>
+    <div class="f-body">
+      <div class="grid-bento">
+        <div class="bento-main">
+          <h3>The Sun: Our Star</h3>
+          <p>The Sun accounts for 99.86% of the mass in the Solar System. It is the gravitational anchor that holds everything in place.</p>
+          <div class="takeaway">Without the Sun's energy, life on Earth would be impossible.</div>
+        </div>
+        <div class="bento-side">
+          <strong>Quick Fact</strong>
+          <p>Light takes about 8 minutes and 20 seconds to travel from the Sun to the Earth.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>`.trim();
+  }
+
+  // 2. Math / Physics Mock (KaTeX)
+  if (t.includes('gravity') || t.includes('mechanics')) {
     return `
 <section class="page">
   <header class="page-header">
@@ -95,76 +138,141 @@ function mockContentHTML(title: string, objective: string, type: string): string
   </header>
   <div class="callout"><strong>Objective:</strong> ${objective}</div>
   
-  <ol class="mc-options">
-    <li class="mc-option">Define the key term introduced in this section in your own words.</li>
-    <li class="mc-option">Give two real-world examples related to the topic.</li>
-    <li class="mc-option">Solve: If the pattern continues, what is the next value? <span class="math">2, 4, 8, 16, \dots</span></li>
-    <li class="mc-option">Explain the difference between the two main ideas presented earlier.</li>
-    <li class="mc-option">Create your own example that demonstrates the concept.</li>
-  </ol>
-
-  <div class="answer-line"></div>
-  <div class="answer-box" data-lines="4"></div>
-
+  <p>Gravity is the force by which a planet or other body draws objects toward its center. Isaac Newton formulated the Law of Universal Gravitation:</p>
+  
+  <div class="math block">
+    F = G \\frac{m_1 m_2}{r^2}
+  </div>
+  
   <div class="grid-2col">
     <div>
-      <h3>Quick Check</h3>
-      <div class="answer-line"></div>
+      <h3>Orbital Velocity</h3>
+      <p>To stay in orbit, an object must travel at a specific speed. This is calculated as:</p>
+      <span class="math">v \\approx \\sqrt{\\frac{GM}{r}}</span>
     </div>
-    <div>
-      <h3>Notes</h3>
-      <div class="answer-box" data-lines="2"></div>
+    <div class="takeaway">
+      Higher orbits require lower velocities to maintain a stable circular path.
     </div>
   </div>
 
-  <aside class="answer-key" style="display:none">
-    <strong>Answer Key:</strong>
-    <ol>
-      <li>Student-produced definition aligned with the lesson.</li>
-      <li>Varied; accept any relevant real-world example.</li>
-      <li>32 — the sequence doubles each step.</li>
-      <li>Key distinction based on the section's main ideas.</li>
-      <li>Student-created; grade on clarity and correctness.</li>
-    </ol>
-  </aside>
+  <div class="diagram">
+    graph LR
+      Sun((Sun)) --- Mercury
+      Sun --- Venus
+      Sun --- Earth
+      Sun --- Mars
+      style Sun fill:#f9d71c,stroke:#333
+  </div>
+  <p class="figure">Figure 2: Gravitational relationships in the inner solar system.</p>
 </section>`.trim();
   }
-  return `
+
+  // 3. Exercises Mock (MCQ / Answer Box)
+  if (type === 'exercise') {
+    return `
 <section class="page">
   <header class="page-header">
     <h1>${title}</h1>
   </header>
   
-  <div class="callout">
-    <strong>Focus:</strong> ${objective}
+  <div class="question">
+    <h3>1. Which planet is known as the "Red Planet"?</h3>
+    <ol class="mc-options">
+      <li class="mc-option">Venus - known for its thick atmosphere.</li>
+      <li class="mc-option">Mars - named for its reddish appearance due to iron oxide.</li>
+      <li class="mc-option">Jupiter - the largest gas giant.</li>
+      <li class="mc-option">Saturn - famous for its extensive ring system.</li>
+    </ol>
   </div>
 
-  <p>This section introduces the core ideas behind <em>${title}</em>. Students should finish this page able to describe the main concepts confidently and relate them to prior knowledge.</p>
-  
-  <div class="grid-2col">
-    <div>
-      <h3>Introduction</h3>
-      <p>Exploring the foundational concepts. We use structured layout to ensure high-fidelity PDF export and deterministic styling.</p>
+  <div class="question">
+    <h3>2. Describe the difference between a terrestrial planet and a gas giant.</h3>
+    <div class="answer-box" data-lines="6"></div>
+  </div>
+
+  <div class="question">
+    <h3>3. Solve the following:</h3>
+    <p>If Earth's gravity is <span class="math">1g</span> and Mars' gravity is <span class="math">0.38g</span>, how much would a 100kg astronaut weigh on Mars?</p>
+    <div class="answer-line"></div>
+  </div>
+
+  <aside class="answer-key" style="display:none">
+    <strong>Answer Key:</strong>
+    <ol>
+      <li>B (Mars)</li>
+      <li>Terrestrial planets are rocky and solid; gas giants are primarily composed of hydrogen and helium with no solid surface.</li>
+      <li>38kg (100 * 0.38)</li>
+    </ol>
+  </aside>
+</section>`.trim();
+  }
+
+  // 4. Case Study
+  if (t.includes('case study')) {
+    return `
+<section class="page">
+  <header class="page-header">
+    <h1>${title}</h1>
+  </header>
+  <div class="case-study">
+    <h3>The Voyager Golden Record</h3>
+    <p>Launched in 1977, the Voyager 1 and 2 spacecraft carry a gold-plated phonograph record containing sounds and images selected to portray the diversity of life and culture on Earth.</p>
+    <p>It is intended for any intelligent extraterrestrial life form, or for future humans, who may find it. The record is a "time capsule," intended to communicate a story of our world to extraterrestrials.</p>
+    <div class="takeaway">Communication across the cosmos requires a universal language: science and music.</div>
+  </div>
+  <div class="answer-box" data-lines="4">If you were to add one song to a new Golden Record today, what would it be and why?</div>
+</section>`.trim();
+  }
+
+  // 5. Glossary
+  if (t.includes('glossary')) {
+    return `
+<section class="page">
+  <header class="page-header">
+    <h1>${title}</h1>
+  </header>
+  <dl class="glossary">
+    <div class="glossary-item">
+      <dt>Astronomical Unit (AU)</dt>
+      <dd>The average distance from the Earth to the Sun, approximately 150 million kilometers.</dd>
     </div>
-    <div>
-      <h3>Key Takeaways</h3>
-      <ul>
-        <li>Clear definition of the central concept.</li>
-        <li>One concrete example that makes it tangible.</li>
-        <li>A short visual cue or diagram suggestion.</li>
-      </ul>
+    <div class="glossary-item">
+      <dt>Light-Year</dt>
+      <dd>The distance light travels in one year, about 9.46 trillion kilometers.</dd>
+    </div>
+    <div class="glossary-item">
+      <dt>Nebula</dt>
+      <dd>A giant cloud of dust and gas in space, often the birthplace of stars.</dd>
+    </div>
+    <div class="glossary-item">
+      <dt>Orbit</dt>
+      <dd>The curved path of a celestial object or spacecraft around a star, planet, or moon.</dd>
+    </div>
+  </dl>
+</section>`.trim();
+  }
+
+  // Default Fallback
+  return `
+<section class="page">
+  <header class="page-header">
+    <h1>${title}</h1>
+  </header>
+  <div class="layout-f">
+    <div class="f-top">
+      <div class="callout"><strong>Objective:</strong> ${objective}</div>
+    </div>
+    <div class="f-body">
+      <p>This is a high-fidelity mock page for the topic of <strong>${title}</strong>. It uses standard semantic HTML as generated by the EduSpark AI engine.</p>
+      <div class="grid-2col">
+        <div class="bento-main">
+          <h3>Central Insight</h3>
+          <p>The system intelligently chooses layouts based on content density and pedagogical goals.</p>
+        </div>
+        <div class="takeaway">Always prioritize clarity in educational content.</div>
+      </div>
     </div>
   </div>
-
-  <div class="figure">
-    <svg width="200" height="100" viewBox="0 0 200 100">
-      <rect x="10" y="10" width="180" height="80" fill="var(--color-accent)" fill-opacity="0.1" stroke="var(--color-accent)" stroke-width="2" />
-      <text x="100" y="55" text-anchor="middle" font-family="serif" font-style="italic">Sample Illustration</text>
-    </svg>
-    <figcaption>Figure 1: Demonstration of the integrated SVG illustration system.</figcaption>
-  </div>
-
-  <p>The system supports inline math using KaTeX: <span class="math">E = mc^2</span> and complex diagrams via Mermaid.</p>
 </section>`.trim();
 }
 
@@ -232,6 +340,11 @@ async function* chatStream(
         colorPalette: 'Warm Earth',
         overallStyle: 'minimal',
         pages: mockPages(topic),
+        brandKit: {
+          schoolName: 'EduSpark Academy',
+          primaryColor: '#CC785C',
+          schoolLogo: 'https://img.icons8.com/ios-filled/100/CC785C/star.png'
+        }
       };
       yield { type: 'function_call', args };
       return;

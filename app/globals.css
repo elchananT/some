@@ -54,3 +54,30 @@
     page-break-after: always;
   }
 }
+
+/* EduSpark Semantic HTML Vocabulary */
+.math { font-family: 'Latin Modern Math', 'STIX Two Math', 'Cambria Math', serif; }
+.diagram svg { max-width: 100%; height: auto; }
+.answer-line { border-bottom: 1px solid var(--color-ink, #1F1F1C); height: 1.8em; margin: 0.4em 0; }
+.answer-box { border: 1px solid var(--color-border, #E8E4DC); border-radius: 4px; padding: 6pt; margin: 6pt 0; }
+.answer-box[data-lines="2"] { min-height: 3.6em; }
+.answer-box[data-lines="4"] { min-height: 7.2em; }
+.answer-box[data-lines="6"] { min-height: 10.8em; }
+.answer-box[data-lines="8"] { min-height: 14.4em; }
+ol.mc-options { list-style: upper-alpha; padding-left: 1.5em; margin: 0.4em 0; }
+ol.mc-options .mc-option { margin: 0.25em 0; }
+.callout { border-left: 3px solid var(--color-accent, #CC785C); background: #FAF7F2; padding: 8pt 12pt; margin: 8pt 0; border-radius: 4px; }
+.grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12pt; }
+.grid-bento { display: grid; grid-template-columns: 2fr 1fr; gap: 12pt; margin: 12pt 0; }
+.bento-main { background: #FAF9F6; border: 1px solid var(--color-border, #E8E4DC); border-radius: 12px; padding: 12pt; }
+.bento-side, .bento-foot { background: #FFFFFF; border: 1px solid var(--color-border, #E8E4DC); border-radius: 12px; padding: 10pt; font-size: 0.9em; }
+.layout-f { display: flex; flex-direction: column; gap: 16pt; }
+.f-top { border-bottom: 2px solid var(--color-accent, #CC785C); padding-bottom: 4pt; }
+.f-body { padding-left: 12pt; border-left: 1px solid var(--color-border, #E8E4DC); }
+.figure { text-align: center; margin: 12pt 0; }
+.figure figcaption { font-size: 9pt; color: var(--color-muted, #7A756B); margin-top: 4pt; font-style: italic; }
+.case-study { border: 2px solid var(--color-accent); padding: 16pt; border-radius: 12px; background: #fffdfb; }
+.takeaway { margin: 12pt 0; padding: 10pt; background: #fff4f0; border-radius: 8px; font-weight: bold; border-left: 4px solid var(--color-accent); }
+.glossary { display: grid; gap: 12pt; }
+.glossary-item dt { font-weight: bold; color: var(--color-accent); }
+.glossary-item dd { margin-left: 0; opacity: 0.8; }

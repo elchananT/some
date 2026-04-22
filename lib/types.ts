@@ -131,5 +131,6 @@ export interface BuildWorkbookArgs {
   overallStyle?: string;
   stylePrefs?: StylePrefs;
   sourceDocuments?: SourceDocument[];
+  brandKit?: BrandKit;
   pages: { title: string; objective: string; type: 'content' | 'exercise' }[];
 }
