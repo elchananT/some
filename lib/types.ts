@@ -48,11 +48,28 @@ export type QuestionTypeId =
   | 'code';
 
 export type DensityId = 'light' | 'balanced' | 'dense';
+export type DifficultyId = 'basic' | 'intermediate' | 'advanced';
+export type AccessibilityId = 'standard' | 'dyslexia-friendly';
+
+export interface BrandKit {
+  schoolLogo?: string;
+  schoolName?: string;
+  primaryColor?: string;
+}
+
+export interface SourceDocument {
+  id: string;
+  name: string;
+  type: 'pdf' | 'txt' | 'docx';
+  content: string;
+}
 
 export interface StylePrefs {
   theme: PrintThemeId;
   questionTypes: QuestionTypeId[];
   density: DensityId;
+  difficulty?: DifficultyId;
+  accessibility?: AccessibilityId;
 }
 
 export interface Workbook {
@@ -68,6 +85,8 @@ export interface Workbook {
   outline?: string;
   verificationReport?: string;
   stylePrefs?: StylePrefs;
+  brandKit?: BrandKit;
+  sourceDocuments?: SourceDocument[];
   /** Pre-rendered print HTML twin, used for PDF/HTML export. Built from pages + stylePrefs. */
   htmlTwin?: string;
 }
@@ -99,6 +118,7 @@ export interface Conversation {
   workbook: Workbook | null;
   step: GeneratingStep;
   updatedAt: number;
+  sourceDocuments?: SourceDocument[];
 }
 
 export interface BuildWorkbookArgs {
@@ -110,5 +130,6 @@ export interface BuildWorkbookArgs {
   colorPalette: string;
   overallStyle?: string;
   stylePrefs?: StylePrefs;
+  sourceDocuments?: SourceDocument[];
   pages: { title: string; objective: string; type: 'content' | 'exercise' }[];
 }

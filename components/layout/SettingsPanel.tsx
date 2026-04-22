@@ -334,6 +334,50 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
               {activeTab === 'appearance' && (
                 <div className="space-y-8">
                   <section>
+                    <h3 className="text-sm font-semibold text-[var(--color-ink,#1F1F1C)] mb-3">School Brand Kit</h3>
+                    <p className="text-xs text-[var(--color-muted,#7A756B)] mb-4">
+                      Customize your exported workbooks with your school logo and colors.
+                    </p>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--color-muted,#7A756B)] mb-1.5">School/Org Name</label>
+                        <input 
+                          type="text"
+                          value={creds.brandKit?.schoolName || ''}
+                          onChange={e => save({ ...creds, brandKit: { ...creds.brandKit, schoolName: e.target.value } })}
+                          className="w-full px-4 py-2.5 rounded-xl border border-[var(--color-border,#E8E4DC)] bg-[var(--color-bg,#FAF9F6)] text-sm text-[var(--color-ink,#1F1F1C)]"
+                          placeholder="e.g. EduSpark Academy"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--color-muted,#7A756B)] mb-1.5">Logo URL (SVG Data-URI recommended)</label>
+                        <input 
+                          type="text"
+                          value={creds.brandKit?.schoolLogo || ''}
+                          onChange={e => save({ ...creds, brandKit: { ...creds.brandKit, schoolLogo: e.target.value } })}
+                          className="w-full px-4 py-2.5 rounded-xl border border-[var(--color-border,#E8E4DC)] bg-[var(--color-bg,#FAF9F6)] text-sm text-[var(--color-ink,#1F1F1C)]"
+                          placeholder="data:image/svg+xml;base64,..."
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--color-muted,#7A756B)] mb-1.5">Accent Color</label>
+                        <div className="flex items-center gap-3">
+                          <input 
+                            type="color"
+                            value={creds.brandKit?.primaryColor || '#CC785C'}
+                            onChange={e => save({ ...creds, brandKit: { ...creds.brandKit, primaryColor: e.target.value } })}
+                            className="w-10 h-10 rounded-lg border border-[var(--color-border,#E8E4DC)] cursor-pointer overflow-hidden p-0"
+                          />
+                          <span className="text-sm font-mono text-[var(--color-muted,#7A756B)]">{creds.brandKit?.primaryColor || '#CC785C'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="pt-6 border-t border-[var(--color-border,#E8E4DC)]">
                     <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--color-muted,#7A756B)] mb-3">
                       Theme & Effects
                     </h3>

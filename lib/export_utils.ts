@@ -1,5 +1,7 @@
-import { Workbook, StylePrefs } from './types';
-import { PRINT_THEMES_CSS, DENSITY_CSS_ALL, getPrintTheme } from './generation/print_themes';
+import { Workbook, StylePrefs, SourceDocument } from './types';
+import { PRINT_THEMES_CSS, DENSITY_CSS_ALL, ACCESSIBILITY_CSS_ALL, getPrintTheme } from './generation/print_themes';
+import { readCreds } from './ai/keys';
+import JSZip from 'jszip';
 
 export function workbookToMarkdown(workbook: Workbook): string {
   let md = `# ${workbook.title}\n\n`;
@@ -264,7 +266,8 @@ export function pageToHTMLStandalone(
 <title>${escapeHtml(workbook.title)} — ${escapeHtml(page.title)}</title>
 <style>${PRINT_CSS}
 ${PRINT_THEMES_CSS}
-${DENSITY_CSS_ALL}</style>
+${DENSITY_CSS_ALL}
+${ACCESSIBILITY_CSS_ALL}</style>
 </head>
 <body class="${bodyClassesFor(workbook.stylePrefs)}">
 ${renderPageSection(workbook, page, pageIndex)}
@@ -275,7 +278,8 @@ ${renderPageSection(workbook, page, pageIndex)}
 function bodyClassesFor(prefs?: StylePrefs): string {
   const theme = getPrintTheme(prefs?.theme);
   const density = prefs?.density ?? 'balanced';
-  return `theme-${theme.id} density-${density}`;
+  const accessibility = prefs?.accessibility === 'dyslexia-friendly' ? ' accessibility-dyslexia-friendly' : '';
+  return `theme-${theme.id} density-${density}${accessibility}`;
 }
 
 /**
@@ -361,6 +365,12 @@ const EXTRA_EXPORT_CSS = `
   ol.mc-options .mc-option { margin: 0.25em 0; }
   .callout { border-left: 3px solid var(--primary, #CC785C); background: #FAF7F2; padding: 8pt 12pt; margin: 8pt 0; border-radius: 4px; }
   .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12pt; }
+  .grid-bento { display: grid; grid-template-columns: 2fr 1fr; gap: 12pt; margin: 12pt 0; }
+  .bento-main { background: #FAF9F6; border: 1px solid var(--rule, #E8E4DC); border-radius: 12px; padding: 12pt; }
+  .bento-side, .bento-foot { background: #FFFFFF; border: 1px solid var(--rule, #E8E4DC); border-radius: 12px; padding: 10pt; font-size: 0.9em; }
+  .layout-f { display: flex; flex-direction: column; gap: 16pt; }
+  .f-top { border-bottom: 2px solid var(--primary, #CC785C); padding-bottom: 4pt; }
+  .f-body { padding-left: 12pt; border-left: 1px solid var(--rule, #E8E4DC); }
   .figure { text-align: center; margin: 12pt 0; }
   .figure figcaption { font-size: 9pt; color: var(--muted, #7A756B); margin-top: 4pt; font-style: italic; }
   
@@ -427,6 +437,12 @@ export function workbookToHTMLStandalone(
         : '';
   const bodyClass = bodyClassesFor(workbook.stylePrefs) + audienceClass;
 
+  const creds = readCreds();
+  const brand = workbook.brandKit || creds.brandKit;
+  const primaryColor = brand?.primaryColor || '#CC785C';
+  const brandLogo = brand?.schoolLogo ? `<img src="${brand.schoolLogo}" style="height: 32pt; width: auto;" alt="Logo" />` : '';
+  const schoolName = brand?.schoolName ? `<div style="font-size: 10pt; font-weight: bold; opacity: 0.7;">${escapeHtml(brand.schoolName)}</div>` : '';
+
   // KaTeX CSS pulled from CDN only when math is present; keeps export
   // self-contained for the common no-math case.
   const needsKatex = /class="math/.test(pagesHtml);
@@ -438,7 +454,23 @@ export function workbookToHTMLStandalone(
     ? '<script src="https://unpkg.com/pagedjs/dist/paged.polyfill.js"></script>'
     : '';
 
+  const brandStyles = `
+    :root {
+      --primary: ${primaryColor} !important;
+    }
+    .page-header::before {
+      content: '';
+    }
+  `;
+
   const runningTitle = `<div class="running-title">${escapeHtml(workbook.title)} &middot; ${escapeHtml(workbook.subject)}</div>`;
+
+  const brandHeader = (brandLogo || schoolName) ? `
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20pt; padding: 10pt 0; border-bottom: 1px solid #eee;">
+      ${brandLogo}
+      ${schoolName}
+    </div>
+  ` : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -451,10 +483,13 @@ ${pagedjsScript}
 <style>${PRINT_CSS}
 ${PRINT_THEMES_CSS}
 ${DENSITY_CSS_ALL}
+${ACCESSIBILITY_CSS_ALL}
+${brandStyles}
 ${EXTRA_EXPORT_CSS}</style>
 </head>
 <body class="${bodyClass}">
 ${runningTitle}
+<div class="brand-header-wrap">${brandHeader}</div>
 ${pagesHtml}
 </body>
 </html>`;
@@ -468,5 +503,93 @@ export async function workbookToHTMLStandaloneBaked(
   opts: ExportOptions = {}
 ): Promise<string> {
   const html = workbookToHTMLStandalone(workbook, opts);
-  return bakeMathAndDiagrams(html);
+  let baked = await bakeMathAndDiagrams(html);
+  
+  // If student audience, inject minimal interactivity scripts
+  if (opts.audience === 'student') {
+    baked = injectStudentInteractivity(baked);
+  }
+  
+  return baked;
+}
+
+function injectStudentInteractivity(html: string): string {
+  const script = `
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    // 1. MC Options
+    const options = document.querySelectorAll('.mc-option');
+    options.forEach(opt => {
+      opt.style.cursor = 'pointer';
+      opt.addEventListener('click', () => {
+        const parent = opt.closest('.mc-options');
+        if (parent) {
+          parent.querySelectorAll('.mc-option').forEach(o => {
+            o.style.background = '';
+            o.style.borderColor = '';
+          });
+        }
+        opt.style.background = '#FFF4E5';
+        opt.style.borderColor = '#CC785C';
+      });
+    });
+
+    // 2. Answer Boxes
+    const boxes = document.querySelectorAll('.answer-box');
+    boxes.forEach(box => {
+      const lines = parseInt(box.getAttribute('data-lines') || '3');
+      const textarea = document.createElement('textarea');
+      textarea.style.width = '100%';
+      textarea.style.padding = '8pt';
+      textarea.style.marginTop = '8pt';
+      textarea.style.border = '1px solid #E8E4DC';
+      textarea.style.borderRadius = '8px';
+      textarea.style.fontFamily = 'inherit';
+      textarea.rows = lines;
+      textarea.placeholder = 'Type your answer here...';
+      box.appendChild(textarea);
+    });
+  });
+</script>
+  `;
+  return html.replace('</body>', `${script}</body>`);
+}
+
+/**
+ * Wraps the workbook into a SCORM 1.2 compliant ZIP package.
+ */
+export async function workbookToSCORM(workbook: Workbook): Promise<Blob> {
+  const zip = new JSZip();
+  const html = await workbookToHTMLStandaloneBaked(workbook, { audience: 'student' });
+  
+  const manifest = `<?xml version="1.0" encoding="UTF-8"?>
+<manifest identifier="EduSpark_${workbook.id}" version="1.0"
+          xmlns="http://www.imsproject.org/xsd/imscp_rootv1p1p2"
+          xmlns:adlcp="http://www.adlnet.org/xsd/adlcp_rootv1p2"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://www.imsproject.org/xsd/imscp_rootv1p1p2 imscp_rootv1p1p2.xsd
+                              http://www.adlnet.org/xsd/adlcp_rootv1p2 adlcp_rootv1p2.xsd">
+  <metadata>
+    <schema>ADL SCORM</schema>
+    <schemaversion>1.2</schemaversion>
+  </metadata>
+  <organizations default="EduSpark_Org">
+    <organization identifier="EduSpark_Org">
+      <title>${escapeHtml(workbook.title)}</title>
+      <item identifier="item_1" identifierref="resource_1">
+        <title>Course Content</title>
+      </item>
+    </organization>
+  </organizations>
+  <resources>
+    <resource identifier="resource_1" type="webcontent" adlcp:scormtype="sco" href="index.html">
+      <file href="index.html"/>
+    </resource>
+  </resources>
+</manifest>`;
+
+  zip.file("imsmanifest.xml", manifest);
+  zip.file("index.html", html);
+  
+  return await zip.generateAsync({ type: "blob" });
 }

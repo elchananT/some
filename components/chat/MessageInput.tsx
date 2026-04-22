@@ -16,6 +16,7 @@ interface MessageInputProps {
   setInput: (val: string) => void;
   onSendMessage: (text?: string) => void;
   onImageUpload: (base64: string) => void;
+  onFileUpload: (doc: any) => void;
   onAddResource: (url: string) => void;
   onInitiateResearch: (keywords: string) => void;
   isTyping: boolean;
@@ -38,6 +39,7 @@ export default function MessageInput({
   setInput,
   onSendMessage,
   onImageUpload,
+  onFileUpload,
   onAddResource,
   onInitiateResearch,
   isTyping,
@@ -91,20 +93,80 @@ export default function MessageInput({
     onSendMessage(input);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > MAX_IMAGE_BYTES) {
-      alert('Image too large — 2 MB max.');
-      e.target.value = '';
-      return;
+
+    if (file.type.startsWith('image/')) {
+      if (file.size > MAX_IMAGE_BYTES) {
+        alert('Image too large — 2 MB max.');
+        e.target.value = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string;
+        onImageUpload(base64);
+      };
+      reader.readAsDataURL(file);
+    } else if (file.type === 'text/plain') {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        onFileUpload({
+          id: Math.random().toString(36).slice(2),
+          name: file.name,
+          type: 'txt',
+          content
+        });
+      };
+      reader.readAsText(file);
+    } else if (file.type === 'application/pdf') {
+      try {
+        const pdfjsLib = await import('pdfjs-dist');
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+        
+        const arrayBuffer = await file.arrayBuffer();
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+        const pdf = await loadingTask.promise;
+        let fullText = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          const strings = content.items.map((item: any) => item.str);
+          fullText += strings.join(' ') + '\n';
+        }
+        
+        onFileUpload({
+          id: Math.random().toString(36).slice(2),
+          name: file.name,
+          type: 'pdf',
+          content: fullText
+        });
+      } catch (err) {
+        console.error('PDF extraction failed:', err);
+        alert('Failed to extract text from PDF.');
+      }
+    } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      try {
+        const mammoth = await import('mammoth');
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        
+        onFileUpload({
+          id: Math.random().toString(36).slice(2),
+          name: file.name,
+          type: 'docx',
+          content: result.value
+        });
+      } catch (err) {
+        console.error('Docx extraction failed:', err);
+        alert('Failed to extract text from DOCX.');
+      }
+    } else {
+      alert('Unsupported file type. Please upload images, TXT, PDF or DOCX.');
     }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
-      onImageUpload(base64);
-    };
-    reader.readAsDataURL(file);
+    
     e.target.value = '';
   };
 
@@ -136,7 +198,7 @@ export default function MessageInput({
           type="file"
           className="hidden"
           ref={fileInputRef}
-          accept="image/*"
+          accept="image/*,.pdf,.txt,.docx"
           onChange={handleFileChange}
         />
 
@@ -194,7 +256,7 @@ export default function MessageInput({
                   <span className="flex-1">
                     Attach file
                     <span className="block text-[11px] font-normal text-[var(--color-muted)]">
-                      PNG, JPG or WebP · 2 MB max
+                      PDF, TXT, DOCX or Images
                     </span>
                   </span>
                 </button>

@@ -14,6 +14,7 @@ interface ChatContainerProps {
   setInput: (val: string) => void;
   onSendMessage: (text?: string) => void;
   onImageUpload: (base64: string) => void;
+  onFileUpload: (doc: any) => void;
   onAddResource: (url: string) => void;
   onInitiateResearch: (keywords: string) => void;
   step: GeneratingStep;
@@ -29,6 +30,7 @@ export default function ChatContainer({
   setInput,
   onSendMessage,
   onImageUpload,
+  onFileUpload,
   onAddResource,
   onInitiateResearch,
   step,
@@ -47,6 +49,7 @@ export default function ChatContainer({
         setInput={setInput}
         onSendMessage={onSendMessage}
         onImageUpload={onImageUpload}
+        onFileUpload={onFileUpload}
         onAddResource={onAddResource}
         onInitiateResearch={onInitiateResearch}
         isTyping={isTyping}

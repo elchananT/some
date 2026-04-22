@@ -4,6 +4,7 @@
  * They are never sent to any EduSpark server.
  */
 import type { ProviderId } from '@/lib/providers/types';
+import type { BrandKit } from '@/lib/types';
 
 const STORAGE_KEY = 'eduspark_ai_keys_v1';
 
@@ -22,6 +23,7 @@ export type ProviderCredentials = {
   openai?: OpenAICreds;
   ollama?: OllamaCreds;
   anthropic?: AnthropicCreds;
+  brandKit?: BrandKit;
   consent?: ConsentFlags;
 };
 
@@ -30,6 +32,7 @@ const DEFAULTS: ProviderCredentials = {
   openai: { model: 'gpt-4o-mini' },
   ollama: { baseURL: 'http://localhost:11434', model: 'gemma4' },
   anthropic: { model: 'claude-3-5-sonnet-latest' },
+  brandKit: { primaryColor: '#CC785C' },
   consent: {},
 };
 
@@ -48,6 +51,7 @@ export function readCreds(): ProviderCredentials {
       openai: { ...DEFAULTS.openai, ...(parsed.openai ?? {}) },
       ollama: { ...DEFAULTS.ollama, ...(parsed.ollama ?? {}) },
       anthropic: { ...DEFAULTS.anthropic, ...(parsed.anthropic ?? {}) },
+      brandKit: { ...DEFAULTS.brandKit, ...(parsed.brandKit ?? {}) },
       consent: { ...(DEFAULTS.consent ?? {}), ...(parsed.consent ?? {}) },
     };
   } catch {

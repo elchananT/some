@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Check, ArrowRight } from 'lucide-react';
-import type { StylePrefs, PrintThemeId, QuestionTypeId, DensityId } from '@/lib/types';
+import type { StylePrefs, PrintThemeId, QuestionTypeId, DensityId, DifficultyId, AccessibilityId } from '@/lib/types';
 import { PRINT_THEMES, QUESTION_TYPES } from '@/lib/generation/print_themes';
 
 interface StylePickerCardProps {
@@ -17,9 +17,17 @@ const DENSITY_OPTIONS: { id: DensityId; label: string; hint: string }[] = [
   { id: 'dense', label: 'Dense', hint: 'more per page' },
 ];
 
+const DIFFICULTY_OPTIONS: { id: DifficultyId; label: string; hint: string }[] = [
+  { id: 'basic', label: 'Basic', hint: 'simple vocabulary' },
+  { id: 'intermediate', label: 'Intermediate', hint: 'grade level' },
+  { id: 'advanced', label: 'Advanced', hint: 'academic depth' },
+];
+
 export default function StylePickerCard({ onSubmit, onSkip }: StylePickerCardProps) {
   const [theme, setTheme] = useState<PrintThemeId>('modern-workbook');
   const [density, setDensity] = useState<DensityId>('balanced');
+  const [difficulty, setDifficulty] = useState<DifficultyId>('intermediate');
+  const [accessibility, setAccessibility] = useState<AccessibilityId>('standard');
   const [qtypes, setQtypes] = useState<QuestionTypeId[]>([
     'mcq',
     'short-answer',
@@ -122,28 +130,76 @@ export default function StylePickerCard({ onSubmit, onSkip }: StylePickerCardPro
 
       {/* Density */}
       <section className="mb-8">
-        <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--color-muted)] mb-3">
-          Page density
-        </h3>
-        <div className="grid grid-cols-3 gap-2">
-          {DENSITY_OPTIONS.map(d => {
-            const selected = density === d.id;
-            return (
-              <button
-                key={d.id}
-                onClick={() => setDensity(d.id)}
-                className={`rounded-xl border px-4 py-3 text-left transition-all ${
-                  selected
-                    ? 'border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]/20 bg-[var(--color-sidebar)]'
-                    : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/40 bg-white'
-                }`}
-              >
-                <div className="text-sm font-semibold text-[var(--color-ink)]">{d.label}</div>
-                <div className="text-[11px] text-[var(--color-muted)]">{d.hint}</div>
-              </button>
-            );
-          })}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--color-muted)] mb-3">
+              Page density
+            </h3>
+            <div className="grid grid-cols-3 gap-2">
+              {DENSITY_OPTIONS.map(d => {
+                const selected = density === d.id;
+                return (
+                  <button
+                    key={d.id}
+                    onClick={() => setDensity(d.id)}
+                    className={`rounded-xl border px-3 py-2.5 text-left transition-all ${
+                      selected
+                        ? 'border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]/20 bg-[var(--color-sidebar)]'
+                        : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/40 bg-white'
+                    }`}
+                  >
+                    <div className="text-xs font-semibold text-[var(--color-ink)]">{d.label}</div>
+                    <div className="text-[10px] text-[var(--color-muted)] leading-tight">{d.hint}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--color-muted)] mb-3">
+              Difficulty level
+            </h3>
+            <div className="grid grid-cols-3 gap-2">
+              {DIFFICULTY_OPTIONS.map(d => {
+                const selected = difficulty === d.id;
+                return (
+                  <button
+                    key={d.id}
+                    onClick={() => setDifficulty(d.id)}
+                    className={`rounded-xl border px-3 py-2.5 text-left transition-all ${
+                      selected
+                        ? 'border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]/20 bg-[var(--color-sidebar)]'
+                        : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/40 bg-white'
+                    }`}
+                  >
+                    <div className="text-xs font-semibold text-[var(--color-ink)]">{d.label}</div>
+                    <div className="text-[10px] text-[var(--color-muted)] leading-tight">{d.hint}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
+      </section>
+
+      {/* Accessibility */}
+      <section className="mb-8 p-4 rounded-2xl border border-[var(--color-border)] bg-white/50">
+        <label className="flex items-center gap-4 cursor-pointer group">
+           <div className="relative inline-flex items-center">
+             <input
+               type="checkbox"
+               className="sr-only peer"
+               checked={accessibility === 'dyslexia-friendly'}
+               onChange={(e) => setAccessibility(e.target.checked ? 'dyslexia-friendly' : 'standard')}
+             />
+             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--color-accent)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--color-accent)]"></div>
+           </div>
+           <div>
+             <span className="text-sm font-semibold text-[var(--color-ink)]">Dyslexia-friendly theme</span>
+             <p className="text-xs text-[var(--color-muted)]">Uses OpenDyslexic font and increased line spacing for better readability</p>
+           </div>
+        </label>
       </section>
 
       {/* Actions */}
@@ -160,7 +216,7 @@ export default function StylePickerCard({ onSubmit, onSkip }: StylePickerCardPro
         )}
         <button
           disabled={!canSubmit}
-          onClick={() => onSubmit({ theme, density, questionTypes: qtypes })}
+          onClick={() => onSubmit({ theme, density, questionTypes: qtypes, difficulty, accessibility })}
           className="inline-flex items-center gap-2 rounded-full bg-[var(--color-accent)] text-white px-6 py-2.5 text-xs font-bold uppercase tracking-[0.15em] shadow-sm disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 transition-all"
         >
           Build workbook

@@ -43,6 +43,7 @@ export default function EduSparkApp() {
     loadConversation,
     deleteConversation,
     handleSendMessage,
+    addSourceDocument,
     addExternalResource,
     initiateResearch,
     usage,
@@ -137,6 +138,7 @@ export default function EduSparkApp() {
             setInput={setInput}
             onSendMessage={handleSendMessage}
             onImageUpload={handleImageUpload}
+            onFileUpload={addSourceDocument}
             onAddResource={addExternalResource}
             onInitiateResearch={initiateResearch}
             step={step}

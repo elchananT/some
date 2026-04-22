@@ -25,6 +25,10 @@ export default function WorkbookPreview({ workbook: initialWorkbook }: { workboo
   const [activeTab, setActiveTab] = useState<'preview' | 'report'>('preview');
   const [isExporting, setIsExporting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [studentMode, setStudentMode] = useState(false);
+  const [studentAnswers, setStudentAnswers] = useState<Record<string, string>>({});
+  const [feedback, setFeedback] = useState<Record<string, string>>({});
+  const [isGrading, setIsGrading] = useState(false);
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -72,20 +76,20 @@ export default function WorkbookPreview({ workbook: initialWorkbook }: { workboo
   // Run render engines whenever workbook changes or is mounted
   useEffect(() => {
     const container = document.getElementById('workbook-container');
-    if (container) {
-      try {
-        renderMathInElement(container, {
-          delimiters: [
-            {left: '$$', right: '$$', display: true},
-            {left: '$', right: '$', display: false},
-            {left: '\\(', right: '\\)', display: false},
-            {left: '\\[', right: '\\]', display: true}
-          ],
-          throwOnError: false
-        });
-      } catch (e) {
-        console.error("Katex error", e);
-      }
+    if (!container) return;
+
+    try {
+      renderMathInElement(container, {
+        delimiters: [
+          {left: '$$', right: '$$', display: true},
+          {left: '$', right: '$', display: false},
+          {left: '\\(', right: '\\)', display: false},
+          {left: '\\[', right: '\\]', display: true}
+        ],
+        throwOnError: false
+      });
+    } catch (e) {
+      console.error("Katex error", e);
     }
     
     try {
@@ -94,7 +98,89 @@ export default function WorkbookPreview({ workbook: initialWorkbook }: { workboo
     } catch (e) {
       console.error("Mermaid error", e);
     }
-  }, [workbook, activeTab]);
+
+    if (studentMode) {
+      // 1. Handle MC Options
+      const mcGroups = container.querySelectorAll('.mc-options');
+      mcGroups.forEach((group, gIdx) => {
+        const options = group.querySelectorAll('.mc-option');
+        options.forEach((opt, oIdx) => {
+          const id = `mc-${gIdx}-${oIdx}`;
+          const isSelected = studentAnswers[id] === 'true';
+          const element = opt as HTMLElement;
+          element.style.cursor = 'pointer';
+          element.onclick = () => {
+            // Deselect others in group
+            const nextAnswers = { ...studentAnswers };
+            options.forEach((_, i) => delete nextAnswers[`mc-${gIdx}-${i}`]);
+            nextAnswers[id] = 'true';
+            setStudentAnswers(nextAnswers);
+          };
+          // Visual feedback
+          element.classList.toggle('selected-opt', isSelected);
+          if (isSelected) {
+            element.style.background = 'var(--color-accent-light, #FFF4E5)';
+            element.style.borderColor = 'var(--color-accent, #CC785C)';
+          } else {
+            element.style.background = '';
+            element.style.borderColor = '';
+          }
+        });
+      });
+
+      // 2. Handle Answer Boxes
+      const boxes = container.querySelectorAll('.answer-box');
+      boxes.forEach((box, i) => {
+        const id = `box-${i}`;
+        let textarea = box.querySelector('textarea');
+        if (!textarea) {
+          textarea = document.createElement('textarea');
+          textarea.className = 'w-full p-3 mt-2 border border-border rounded-xl focus:ring-2 focus:ring-accent outline-none transition-all text-sm font-sans';
+          textarea.placeholder = 'Type your answer here...';
+          textarea.rows = Number(box.getAttribute('data-lines')) || 3;
+          box.appendChild(textarea);
+        }
+        textarea.value = studentAnswers[id] || '';
+        textarea.oninput = (e) => {
+          const val = (e.target as HTMLTextAreaElement).value;
+          setStudentAnswers(prev => ({ ...prev, [id]: val }));
+        };
+      });
+
+      // 3. Handle Answer Lines
+      const lines = container.querySelectorAll('.answer-line');
+      lines.forEach((line, i) => {
+        const id = `line-${i}`;
+        let input = line.querySelector('input');
+        if (!input) {
+          input = document.createElement('input');
+          input.className = 'bg-transparent border-b border-accent/30 focus:border-accent outline-none px-1 py-0.5 text-sm w-full';
+          input.placeholder = '...';
+          line.appendChild(input);
+        }
+        input.value = studentAnswers[id] || '';
+        input.oninput = (e) => {
+          const val = (e.target as HTMLInputElement).value;
+          setStudentAnswers(prev => ({ ...prev, [id]: val }));
+        };
+      });
+    }
+  }, [workbook, activeTab, studentMode, studentAnswers]);
+
+  const handleGradeWork = () => {
+    setIsGrading(true);
+    // In a real app, this might call an AI to grade.
+    // For now, we reveal the hidden .answer-key blocks if they exist.
+    const container = document.getElementById('workbook-container');
+    if (container) {
+      const keys = container.querySelectorAll('.answer-key, .answer');
+      keys.forEach(k => {
+        (k as HTMLElement).style.display = 'block';
+        (k as HTMLElement).style.opacity = '1';
+      });
+    }
+    setTimeout(() => setIsGrading(false), 800);
+  };
 
   return (
     <div className="flex w-full h-full bg-bg font-sans text-ink overflow-hidden">
@@ -137,7 +223,13 @@ export default function WorkbookPreview({ workbook: initialWorkbook }: { workboo
             <TabButton active={activeTab === 'report'} onClick={() => setActiveTab('report')} label="Report" />
           </div>
           <div className="flex items-center gap-4">
-             <button onClick={() => setIsEditing(!isEditing)} className={`text-xs ${isEditing ? 'text-accent font-semibold' : 'text-muted'}`}>
+             <button 
+                onClick={() => { setStudentMode(!studentMode); setIsEditing(false); setFeedback({}); }} 
+                className={`text-xs px-3 py-1 rounded-full border transition-all ${studentMode ? 'bg-accent text-white border-accent shadow-sm' : 'text-muted border-border hover:border-accent'}`}
+             >
+                {studentMode ? 'Exit Student Mode' : 'Student Mode'}
+             </button>
+             <button onClick={() => { setIsEditing(!isEditing); setStudentMode(false); }} className={`text-xs ${isEditing ? 'text-accent font-semibold' : 'text-muted'}`}>
                 {isEditing ? 'Stop Editing' : 'Edit Mode'}
              </button>
           </div>
@@ -265,6 +357,19 @@ export default function WorkbookPreview({ workbook: initialWorkbook }: { workboo
                             onBlur={(e) => handleContentChange(page.id, sanitizeHTML(e.currentTarget.innerHTML))}
                             dangerouslySetInnerHTML={{ __html: sanitizeHTML(page.content) }}
                           />
+
+                          {studentMode && page.type === 'exercise' && (
+                             <div className="mt-8 flex justify-center">
+                                <button 
+                                  onClick={handleGradeWork}
+                                  disabled={isGrading}
+                                  className="flex items-center gap-2 px-6 py-2.5 bg-accent text-white rounded-full font-bold text-xs uppercase tracking-widest shadow-lg hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
+                                >
+                                  {isGrading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Sparkles size={16} />}
+                                  Check My Answers
+                                </button>
+                             </div>
+                          )}
 
                           {/* Block Renderer (if any) */}
                           {page.blocks && page.blocks.length > 0 && (

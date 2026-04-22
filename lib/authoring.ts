@@ -29,6 +29,8 @@ HTML OUTPUT VOCABULARY (use these semantic classes ONLY):
 - <div class="figure"><svg>...</svg><figcaption>...</figcaption></div>
 - <div class="callout">...</div>
 - <div class="grid-2col">...</div>
+- <div class="grid-bento"> (Bento Grid 2.0: Use <div class="bento-main"> for core concept, <div class="bento-side"> for trivia/sidebar, <div class="bento-foot"> for summary)
+- <div class="layout-f"> (F-Pattern: Use alternating <div class="f-top"> (header) and <div class="f-body"> (content) blocks for high-retention reading)
 - <div class="takeaway">...</div>
 - <div class="case-study">...</div>
 - <div class="glossary-item"><dt>Term</dt><dd>Definition</dd></div>
@@ -100,6 +102,25 @@ function themeHint(prefs?: StylePrefs): string {
   }
 }
 
+function difficultyHint(prefs?: StylePrefs): string {
+  switch (prefs?.difficulty) {
+    case 'basic':
+      return '\nDIFFICULTY: basic — use simple vocabulary (CEFR A1/A2), concrete examples, and break down complex concepts into small steps.';
+    case 'advanced':
+      return '\nDIFFICULTY: advanced — use sophisticated academic vocabulary (CEFR C1/C2), complex sentence structures, and expect high-level synthesis.';
+    case 'intermediate':
+    default:
+      return '\nDIFFICULTY: intermediate — standard grade-level vocabulary and balanced complexity.';
+  }
+}
+
+function accessibilityHint(prefs?: StylePrefs): string {
+  if (prefs?.accessibility === 'dyslexia-friendly') {
+    return '\nACCESSIBILITY: dyslexia-friendly — use even more whitespace, shorter paragraphs, and bold important terms. Ensure logical flow is very explicit.';
+  }
+  return '';
+}
+
 /**
  * Builds a content-page prompt that injects the authoring rubric plus any
  * style-pref guidance. Used by provider `generateContentPage` implementations.
@@ -113,7 +134,7 @@ export function buildContentPagePrompt(args: {
 }): string {
   const { title, objective, type, context, stylePrefs } = args;
   return `${AUTHORING_RUBRIC}
-${themeHint(stylePrefs)}${densityHint(stylePrefs)}${questionTypeHint(stylePrefs?.questionTypes)}
+${themeHint(stylePrefs)}${difficultyHint(stylePrefs)}${accessibilityHint(stylePrefs)}${densityHint(stylePrefs)}${questionTypeHint(stylePrefs?.questionTypes)}
 
 TASK:
 Create a ${type} page titled "${title}".

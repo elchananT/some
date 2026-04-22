@@ -108,18 +108,37 @@ export async function runPipeline(
   };
   const stylePrefs = workbook.stylePrefs;
 
-  // --- Stage: research (autonomous) -----------------------------------------
   hooks.onStage('researching');
-  hooks.onPhase('Gathering real-world context and educational standards');
-  hooks.onBreadcrumb(`Researching subject: ${args.subject}`);
+  hooks.onPhase('Gathering real-world context and grounding data');
+  
+  const sourcesText = args.sourceDocuments?.length 
+    ? args.sourceDocuments.map(d => `SOURCE: ${d.name} (${d.type})\n${d.content.slice(0, 6000)}...`).join('\n\n')
+    : 'No uploaded documents.';
+
+  hooks.onBreadcrumb(args.sourceDocuments?.length 
+    ? `Grounding on ${args.sourceDocuments.length} uploaded source(s)`
+    : `Researching subject: ${args.subject}`
+  );
+
   try {
     // We call the util model with tools to get a summary of the subject/context
-    const researchPrompt = `Research and summarize key educational concepts, real-world examples, and common student misconceptions for: "${args.subject}" at level "${args.level}". Use search/wiki tools if needed. Return a concise context for a curriculum designer.`;
+    const researchPrompt = `
+      Research and summarize key educational concepts for: "${args.subject}" at level "${args.level}".
+      
+      UPLOADED SOURCE DOCUMENTS:
+      ${sourcesText}
+      
+      INSTRUCTIONS:
+      1. PRIORITIZE facts from the uploaded documents if provided.
+      2. If documents are missing or incomplete, use your tools (Search/Wiki) to verify facts.
+      3. Identify key terminology, real-world examples, and common student misconceptions.
+      4. Return a concise grounding context for the workbook drafting phase.
+    `;
     const researchContext = await generateContentPage(
       'Research Results',
       'Gather grounding context',
       'internal-research',
-      `Subject: ${args.subject}. Level: ${args.level}.`,
+      researchPrompt,
       stylePrefs
     );
     workbook.outline += `\n\nResearch context used:\n${researchContext}`;
@@ -135,10 +154,12 @@ export async function runPipeline(
   hooks.onBreadcrumb(`Outline ready · ${total} pages`);
   await sleep(1200);
 
-  // We add a Cover Page and a TOC if the workbook has more than 2 content pages
+  // We add a Cover Page and a TOC if the workbook has more than 2 content pages.
+  // For workbooks > 10 pages, we also add an Index.
   const needsMetadataPages = total >= 2;
   const metadataPagesCount = needsMetadataPages ? 2 : 0;
-  const actualTotal = total + metadataPagesCount;
+  const needsIndex = total >= 10;
+  const actualTotal = total + metadataPagesCount + (needsIndex ? 1 : 0);
   
   // Re-adjust workbook.pages array
   workbook.pages = new Array(actualTotal).fill(null) as unknown as WorkbookPage[];
@@ -220,7 +241,31 @@ export async function runPipeline(
       workbook.pages[targetIdx] = page;
       hooks.onPageUpdate(targetIdx, page);
       return page;
-    })
+    }),
+    // Index Page task
+    ...(needsIndex ? [async () => {
+      hooks.onBreadcrumb('Generating Keyword Index');
+      const allContent = workbook.pages.filter(p => p?.type === 'content').map(p => p?.content).join(' ');
+      const content = await generateContentPage(
+        'Index',
+        'Create an alphabetical index of key terms found in the workbook.',
+        'index',
+        `Workbook Subject: ${args.subject}\nFull Context: ${allContent.slice(0, 5000)}`,
+        stylePrefs
+      );
+      const page: WorkbookPage = {
+        id: 'page-index',
+        title: 'Index',
+        type: 'content',
+        content,
+        theme: args.overallStyle as WorkbookPage['theme'],
+        blocks: [],
+      };
+      const indexIdx = actualTotal - 1;
+      workbook.pages[indexIdx] = page;
+      hooks.onPageUpdate(indexIdx, page);
+      return page;
+    }] : [])
   ];
 
   await runWithConcurrency(draftTasks, cap);

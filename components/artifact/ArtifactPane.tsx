@@ -6,7 +6,7 @@ import { Workbook, GeneratingStep, Roadmap, StylePrefs } from '@/lib/types';
 import WorkbookPreview from '../WorkbookPreview';
 import { WORKBOOK_STYLES, WorkbookStyle, StyleVariant } from '@/lib/themes';
 import StylePickerCard from '../chat/StylePickerCard';
-import { workbookToMarkdown, workbookToText, workbookToHTMLStandaloneBaked } from '@/lib/export_utils';
+import { workbookToMarkdown, workbookToText, workbookToHTMLStandaloneBaked, workbookToSCORM } from '@/lib/export_utils';
 import dynamic from 'next/dynamic';
 const StudioView = dynamic(() => import('./StudioView'), { ssr: false });
 import StyleCard from './StyleCard';
@@ -47,23 +47,38 @@ export default function ArtifactPane({
   const [isStudioOpen, setIsStudioOpen] = React.useState(false);
 
   const handleExport = async (
-    format: 'md' | 'txt' | 'html' | 'html-teacher' | 'html-student' | 'pro-pdf'
+    format: 'md' | 'txt' | 'html' | 'html-teacher' | 'html-student' | 'pro-pdf' | 'pro-pdf-teacher' | 'scorm'
   ) => {
     if (!workbook) return;
 
-    let content = '';
+    let content: string | Blob = '';
     let mimeType = 'text/plain';
     let ext: string = format;
     let suffix = '';
 
-    if (format === 'pro-pdf') {
-      const html = await workbookToHTMLStandaloneBaked(workbook, { usePagedJS: true });
+    if (format === 'pro-pdf' || format === 'pro-pdf-teacher') {
+      const audience = format === 'pro-pdf-teacher' ? 'teacher' : 'student';
+      const html = await workbookToHTMLStandaloneBaked(workbook, { usePagedJS: true, audience });
       const win = window.open('', '_blank');
       if (win) {
         win.document.write(html);
         win.document.close();
         win.onload = () => setTimeout(() => win.print(), 3000);
       }
+      setIsExportMenuOpen(false);
+      return;
+    }
+
+    if (format === 'scorm') {
+      const blob = await workbookToSCORM(workbook);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${workbook.title.toLowerCase().replace(/\s+/g, '_')}_scorm.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       setIsExportMenuOpen(false);
       return;
     }
@@ -181,6 +196,19 @@ export default function ArtifactPane({
                          </button>
 
                          <button 
+                           onClick={() => handleExport('pro-pdf-teacher')}
+                           className="flex items-center gap-4 p-4 text-sm font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-2xl transition-all group border border-amber-200/50"
+                         >
+                           <div className="w-10 h-10 rounded-xl bg-white text-amber-700 flex items-center justify-center group-hover:scale-110 transition-all shadow-sm">
+                             <UserCheck size={20} />
+                           </div>
+                           <div className="flex flex-col items-start translate-y-0.5">
+                             <span>Pro PDF (Teacher)</span>
+                             <span className="text-[10px] opacity-60 font-mono">With Answer Key</span>
+                           </div>
+                         </button>
+
+                         <button 
                            onClick={() => handleExport('html')}
                            className="flex items-center gap-4 p-4 text-sm font-bold text-[#1a1a1a] hover:bg-[#f5f5f5] rounded-2xl transition-all group"
                          >
@@ -214,8 +242,21 @@ export default function ArtifactPane({
                              <ClipboardCheck size={20} />
                            </div>
                            <div className="flex flex-col items-start translate-y-0.5">
-                             <span>Student copy</span>
-                             <span className="text-[10px] opacity-40 font-mono">Answer keys hidden</span>
+                             <span>Interactive HTML</span>
+                             <span className="text-[10px] opacity-40 font-mono">Self-grading student copy</span>
+                           </div>
+                         </button>
+
+                         <button
+                           onClick={() => handleExport('scorm')}
+                           className="flex items-center gap-4 p-4 text-sm font-bold text-[#1a1a1a] hover:bg-[#f5f5f5] rounded-2xl transition-all group"
+                         >
+                           <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center group-hover:bg-indigo-700 group-hover:text-white transition-all">
+                             <ShieldCheck size={20} />
+                           </div>
+                           <div className="flex flex-col items-start translate-y-0.5">
+                             <span>LMS / SCORM 1.2</span>
+                             <span className="text-[10px] opacity-40 font-mono">Standard e-learning pack</span>
                            </div>
                          </button>
 

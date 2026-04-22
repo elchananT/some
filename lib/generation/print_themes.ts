@@ -1,4 +1,4 @@
-import type { PrintThemeId, DensityId, QuestionTypeId } from '@/lib/types';
+import type { PrintThemeId, DensityId, QuestionTypeId, AccessibilityId } from '@/lib/types';
 
 /**
  * Six locked print themes. Each is a self-contained CSS block scoped to a body
@@ -157,6 +157,26 @@ export const DENSITY_CSS: Record<DensityId, string> = {
 };
 
 export const DENSITY_CSS_ALL = Object.values(DENSITY_CSS).join('\n');
+
+export const ACCESSIBILITY_CSS: Record<AccessibilityId, string> = {
+  standard: '',
+  'dyslexia-friendly': `
+    .accessibility-dyslexia-friendly .page { 
+      font-family: 'OpenDyslexic', 'Comic Sans MS', 'Chalkboard SE', cursive !important; 
+      line-height: 1.8 !important; 
+      letter-spacing: 0.05em !important; 
+      word-spacing: 0.1em !important;
+    }
+    .accessibility-dyslexia-friendly .page-body {
+      font-size: 12pt !important;
+    }
+    .accessibility-dyslexia-friendly .page-body p {
+      margin-bottom: 1.5em !important;
+    }
+  `,
+};
+
+export const ACCESSIBILITY_CSS_ALL = Object.values(ACCESSIBILITY_CSS).join('\n');
 
 export const QUESTION_TYPES: { id: QuestionTypeId; label: string; hint: string }[] = [
   { id: 'mcq', label: 'Multiple choice', hint: '4 options' },

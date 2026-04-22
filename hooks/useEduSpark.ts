@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { chatWithCurriculumDesignerStream, generateChatTitle } from '@/lib/ai_stream';
 import { runPipeline } from '@/lib/pipeline';
-import { Workbook, GeneratingStep, ChatMessage, Roadmap, Conversation, BuildWorkbookArgs } from '@/lib/types';
+import { Workbook, GeneratingStep, ChatMessage, Roadmap, Conversation, BuildWorkbookArgs, SourceDocument } from '@/lib/types';
 
 const STORAGE_KEY = 'eduspark_conversations_v3';
 
@@ -20,6 +20,7 @@ export function useEduSpark() {
   const [breadcrumbs, setBreadcrumbs] = useState<string[]>([]);
   const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
   const [workbook, setWorkbook] = useState<Workbook | null>(null);
+  const [sourceDocuments, setSourceDocuments] = useState<SourceDocument[]>([]);
   const [progress, setProgress] = useState(0);
   const [usage, setUsage] = useState<{
     model?: string;
@@ -53,6 +54,7 @@ export function useEduSpark() {
             messages,
             workbook,
             step,
+            sourceDocuments,
             updatedAt: Date.now()
           };
         }
@@ -61,7 +63,7 @@ export function useEduSpark() {
       
       // Only save if something actually changed to avoid infinite loops
       const current = prev.find(c => c.id === activeConversationId);
-      if (current && (current.messages !== messages || current.workbook !== workbook || current.step !== step)) {
+      if (current && (current.messages !== messages || current.workbook !== workbook || current.step !== step || current.sourceDocuments !== sourceDocuments)) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
       }
       
@@ -77,12 +79,14 @@ export function useEduSpark() {
       messages: [],
       workbook: null,
       step: 'idle',
+      sourceDocuments: [],
       updatedAt: Date.now()
     };
     setConversations(prev => [newConversation, ...prev]);
     setActiveConversationId(newId);
     setMessages([]);
     setWorkbook(null);
+    setSourceDocuments([]);
     setStep('idle');
     setRoadmap(null);
     setProgress(0);
@@ -93,6 +97,7 @@ export function useEduSpark() {
     setActiveConversationId(conv.id);
     setMessages(conv.messages);
     setWorkbook(conv.workbook);
+    setSourceDocuments(conv.sourceDocuments || []);
     setStep(conv.step);
     setRoadmap(null);
     setProgress(conv.step === 'complete' ? 100 : 0);
@@ -108,11 +113,16 @@ export function useEduSpark() {
         setActiveConversationId(null);
         setMessages([]);
         setWorkbook(null);
+        setSourceDocuments([]);
         setStep('idle');
       }
       return filtered;
     });
   }, [activeConversationId]);
+
+  const addSourceDocument = useCallback((doc: SourceDocument) => {
+    setSourceDocuments(prev => [...prev, doc]);
+  }, []);
 
   const startGeneration = useCallback(async (args: BuildWorkbookArgs) => {
     const started = Date.now();
@@ -141,7 +151,7 @@ export function useEduSpark() {
 
       // Thread stylePrefs into build args so providers can tailor the
       // authoring rubric (tone + density + allowed question types).
-      const argsWithPrefs = { ...args, stylePrefs: preservedStylePrefs };
+      const argsWithPrefs = { ...args, stylePrefs: preservedStylePrefs, sourceDocuments };
 
       const { workbook: finalWorkbook } = await runPipeline(argsWithPrefs, {
         onStage: stage => setStep(stage),
@@ -311,6 +321,7 @@ export function useEduSpark() {
     loadConversation,
     deleteConversation,
     handleSendMessage,
+    addSourceDocument,
     startGeneration,
     addExternalResource,
     initiateResearch,
