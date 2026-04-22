@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { chatWithCurriculumDesignerStream, generateChatTitle } from '@/lib/ai_stream';
 import { runPipeline } from '@/lib/pipeline';
 import { Workbook, GeneratingStep, ChatMessage, Roadmap, Conversation, BuildWorkbookArgs, SourceDocument } from '@/lib/types';
+import { getDemoConversation } from '@/lib/demo_conversation';
 
 const STORAGE_KEY = 'eduspark_conversations_v3';
 
@@ -32,13 +33,22 @@ export function useEduSpark() {
   // Load conversations
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
+    let parsed: Conversation[] = [];
     if (saved) {
       try {
-        const parsed = JSON.parse(saved) as Conversation[];
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setConversations(parsed);
+        parsed = JSON.parse(saved) as Conversation[];
       } catch (e) { console.error(e); }
     }
+
+    // Always ensure the demo is present for evaluation/testing
+    if (!parsed.some(c => c.id === 'solar-system-demo-v1')) {
+      parsed = [getDemoConversation(), ...parsed];
+      // Save it immediately so it persists
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+    }
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setConversations(parsed);
   }, []);
 
   // Sync current state to conversations array
