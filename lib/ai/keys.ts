@@ -26,7 +26,7 @@ export type ProviderCredentials = {
 };
 
 const DEFAULTS: ProviderCredentials = {
-  gemini: { model: 'gemini-2.5-flash' },
+  gemini: { model: 'gemini-1.5-flash' },
   openai: { model: 'gpt-4o-mini' },
   ollama: { baseURL: 'http://localhost:11434', model: 'llama3.2' },
   anthropic: { model: 'claude-3-5-sonnet-latest' },
@@ -104,6 +104,18 @@ export function getKey(provider: ProviderId): string | undefined {
     );
   }
   return undefined;
+}
+
+/**
+ * Returns a specific key from a potentially comma-separated list,
+ * rotating based on the attempt count.
+ */
+export function getRotatingKey(provider: ProviderId, attempt = 0): string | undefined {
+  const raw = getKey(provider);
+  if (!raw) return undefined;
+  const keys = raw.split(',').map((k) => k.trim()).filter(Boolean);
+  if (keys.length === 0) return undefined;
+  return keys[attempt % keys.length];
 }
 
 export function getModel(provider: ProviderId): string | undefined {

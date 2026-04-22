@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence, type PanInfo } from 'framer-motion';
 import { X, Eye, EyeOff, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { readCreds, writeCreds, type ProviderCredentials } from '@/lib/ai/keys';
+import { modelsFor } from '@/lib/ai/model_catalog';
 import { getProvider, AVAILABLE_PROVIDERS, setActiveProviderId, getActiveProviderId } from '@/lib/providers';
 import type { ProviderId, PingResult } from '@/lib/providers/types';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -23,9 +24,15 @@ interface SettingsPanelProps {
 
 type Status = { state: 'idle' | 'testing' | 'ok' | 'error'; message?: string; latencyMs?: number };
 
-const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro'];
-const OPENAI_MODELS = ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'];
-const ANTHROPIC_MODELS = ['claude-3-5-sonnet-latest', 'claude-3-5-haiku-latest'];
+const TABS = [
+  { id: 'keys', label: 'API Keys' },
+  { id: 'models', label: 'Models' },
+  { id: 'tools', label: 'Tools' },
+  { id: 'appearance', label: 'Appearance' },
+  { id: 'about', label: 'About' },
+] as const;
+
+type TabId = (typeof TABS)[number]['id'];
 
 export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
   const isMobile = useIsMobile();
@@ -38,6 +45,8 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
   const [openaiStatus, setOpenaiStatus] = useState<Status>({ state: 'idle' });
   const [ollamaStatus, setOllamaStatus] = useState<Status>({ state: 'idle' });
   const [anthropicStatus, setAnthropicStatus] = useState<Status>({ state: 'idle' });
+
+  const [activeTab, setActiveTab] = useState<TabId>('keys');
 
   useEffect(() => {
     if (open) {
@@ -122,182 +131,287 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                 <div className="h-1.5 w-10 rounded-full bg-[var(--color-border,#E8E4DC)]" />
               </div>
             )}
-            <header className="flex items-center justify-between px-6 py-4 sm:py-5 border-b border-[var(--color-border,#E8E4DC)]">
-              <div>
-                <h2 className="text-lg font-serif text-[var(--color-ink,#1F1F1C)]">Settings</h2>
-                <p className="text-xs text-[var(--color-muted,#7A756B)] mt-1">
-                  Your keys stay in this browser (localStorage) — never sent to our servers.
-                </p>
+            <header className="px-6 py-4 sm:py-5 border-b border-[var(--color-border,#E8E4DC)] shrink-0">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-serif text-[var(--color-ink,#1F1F1C)]">Settings</h2>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="p-2 rounded-xl hover:bg-[var(--color-bg,#FAF9F6)] text-[var(--color-muted,#7A756B)] hover:text-[var(--color-ink,#1F1F1C)]"
+                  aria-label="Close settings"
+                >
+                  <X size={18} />
+                </button>
               </div>
-              <button
-                onClick={onClose}
-                className="p-2 rounded-xl hover:bg-[var(--color-bg,#FAF9F6)] text-[var(--color-muted,#7A756B)] hover:text-[var(--color-ink,#1F1F1C)]"
-                aria-label="Close settings"
-              >
-                <X size={18} />
-              </button>
+
+              {/* Tab Bar */}
+              <div className="flex gap-4 overflow-x-auto no-scrollbar scroll-smooth">
+                {TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`pb-2 text-xs font-bold uppercase tracking-widest whitespace-nowrap transition-all border-b-2 ${
+                      activeTab === tab.id
+                        ? 'border-[var(--color-accent,#CC785C)] text-[var(--color-ink,#1F1F1C)]'
+                        : 'border-transparent text-[var(--color-muted,#7A756B)] hover:text-[var(--color-ink,#1F1F1C)]'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
             </header>
 
             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-8">
-              {/* Active provider picker */}
-              <section>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--color-muted,#7A756B)] mb-3">
-                  Active Provider
-                </h3>
-                <div className="grid grid-cols-2 gap-2">
-                  {AVAILABLE_PROVIDERS.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => activateProvider(p.id)}
-                      className={`px-3 py-2 rounded-xl border text-sm transition-all text-left ${
-                        activeProvider === p.id
-                          ? 'border-[var(--color-accent,#CC785C)] bg-[var(--color-accent,#CC785C)]/10 text-[var(--color-ink,#1F1F1C)]'
-                          : 'border-[var(--color-border,#E8E4DC)] hover:bg-[var(--color-bg,#FAF9F6)] text-[var(--color-ink,#1F1F1C)]'
-                      }`}
-                    >
-                      <div className="font-semibold">{p.label}</div>
-                      <div className="text-xs text-[var(--color-muted,#7A756B)] mt-0.5">{p.hint}</div>
-                    </button>
-                  ))}
-                </div>
-              </section>
+              {activeTab === 'keys' && (
+                <div className="space-y-8">
+                  {/* Gemini */}
+                  <ProviderSection
+                    title="Gemini (Google)"
+                    description="Fast, multimodal, strong on structured output. Recommend for free use."
+                    status={geminiStatus}
+                  >
+                    <div className="flex items-center justify-between gap-4 mb-2">
+                      <a
+                        href="https://aistudio.google.com/app/apikey"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-[var(--color-accent,#CC785C)] hover:underline"
+                      >
+                        Get Gemini Key ↗
+                      </a>
+                    </div>
+                    <KeyInput
+                      id="gemini-key"
+                      value={creds.gemini?.apiKey || ''}
+                      show={showGeminiKey}
+                      onToggle={() => setShowGeminiKey((v) => !v)}
+                      onChange={(v) => save({ ...creds, gemini: { ...creds.gemini, apiKey: v } })}
+                      placeholder="AIza…"
+                    />
+                    <TestButton onClick={() => testConnection('gemini', setGeminiStatus)} status={geminiStatus} />
+                  </ProviderSection>
 
-              {/* Gemini */}
-              <ProviderSection
-                title="Gemini (Google)"
-                description="Fast, multimodal, strong on structured output."
-                status={geminiStatus}
-              >
-                <KeyInput
-                  id="gemini-key"
-                  value={creds.gemini?.apiKey || ''}
-                  show={showGeminiKey}
-                  onToggle={() => setShowGeminiKey(v => !v)}
-                  onChange={v => save({ ...creds, gemini: { ...creds.gemini, apiKey: v } })}
-                  placeholder="AIza…"
-                />
-                <ModelSelect
-                  value={creds.gemini?.model || GEMINI_MODELS[0]}
-                  models={GEMINI_MODELS}
-                  onChange={v => save({ ...creds, gemini: { ...creds.gemini, model: v } })}
-                />
-                <TestButton onClick={() => testConnection('gemini', setGeminiStatus)} status={geminiStatus} />
-              </ProviderSection>
+                  {/* Anthropic (Claude) */}
+                  <ProviderSection
+                    title="Claude (Anthropic)"
+                    description="Great for Claude Pro subscribers. Key stays in this browser."
+                    status={anthropicStatus}
+                  >
+                    <div className="flex items-center justify-between gap-4 mb-2">
+                      <a
+                        href="https://console.anthropic.com/settings/keys"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-[var(--color-accent,#CC785C)] hover:underline"
+                      >
+                        Get Claude Key ↗
+                      </a>
+                    </div>
+                    <KeyInput
+                      id="anthropic-key"
+                      value={creds.anthropic?.apiKey || ''}
+                      show={showAnthropicKey}
+                      onToggle={() => setShowAnthropicKey((v) => !v)}
+                      onChange={(v) => save({ ...creds, anthropic: { ...creds.anthropic, apiKey: v } })}
+                      placeholder="sk-ant-…"
+                    />
+                    <TestButton
+                      onClick={() => testConnection('anthropic', setAnthropicStatus)}
+                      status={anthropicStatus}
+                    />
+                  </ProviderSection>
 
-              {/* Anthropic (Claude) */}
-              <ProviderSection
-                title="Claude (Anthropic)"
-                description="Great for Claude Pro subscribers. Key stays in this browser."
-                status={anthropicStatus}
-              >
-                <KeyInput
-                  id="anthropic-key"
-                  value={creds.anthropic?.apiKey || ''}
-                  show={showAnthropicKey}
-                  onToggle={() => setShowAnthropicKey(v => !v)}
-                  onChange={v => save({ ...creds, anthropic: { ...creds.anthropic, apiKey: v } })}
-                  placeholder="sk-ant-…"
-                />
-                <ModelSelect
-                  value={creds.anthropic?.model || ANTHROPIC_MODELS[0]}
-                  models={ANTHROPIC_MODELS}
-                  onChange={v => save({ ...creds, anthropic: { ...creds.anthropic, model: v } })}
-                />
-                <TestButton
-                  onClick={() => testConnection('anthropic', setAnthropicStatus)}
-                  status={anthropicStatus}
-                />
-              </ProviderSection>
-
-              {/* OpenAI — demoted to Advanced providers accordion */}
-              <details className="group rounded-2xl border border-[var(--color-border,#E8E4DC)] bg-[var(--color-surface,#FFFFFF)] open:shadow-sm">
-                <summary className="list-none cursor-pointer px-4 py-3 flex items-center justify-between gap-2 select-none">
-                  <span className="text-xs font-semibold uppercase tracking-widest text-[var(--color-muted,#7A756B)]">
-                    Advanced providers
-                  </span>
-                  <span className="text-xs text-[var(--color-muted,#7A756B)] group-open:rotate-180 transition-transform">▾</span>
-                </summary>
-                <div className="px-4 pb-4">
+                  {/* OpenAI */}
                   <ProviderSection
                     title="OpenAI"
-                    description="GPT-4o family. Requires a billing-enabled key."
+                    description="GPT family. Requires a billing-enabled key."
                     status={openaiStatus}
                   >
+                    <div className="flex items-center justify-between gap-4 mb-2">
+                      <a
+                        href="https://platform.openai.com/api-keys"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-[var(--color-accent,#CC785C)] hover:underline"
+                      >
+                        Get OpenAI Key ↗
+                      </a>
+                    </div>
                     <KeyInput
                       id="openai-key"
                       value={creds.openai?.apiKey || ''}
                       show={showOpenAIKey}
-                      onToggle={() => setShowOpenAIKey(v => !v)}
-                      onChange={v => save({ ...creds, openai: { ...creds.openai, apiKey: v } })}
+                      onToggle={() => setShowOpenAIKey((v) => !v)}
+                      onChange={(v) => save({ ...creds, openai: { ...creds.openai, apiKey: v } })}
                       placeholder="sk-…"
-                    />
-                    <ModelSelect
-                      value={creds.openai?.model || OPENAI_MODELS[0]}
-                      models={OPENAI_MODELS}
-                      onChange={v => save({ ...creds, openai: { ...creds.openai, model: v } })}
                     />
                     <TextInput
                       label="Base URL (optional)"
                       value={creds.openai?.baseURL || ''}
-                      onChange={v => save({ ...creds, openai: { ...creds.openai, baseURL: v || undefined } })}
+                      onChange={(v) => save({ ...creds, openai: { ...creds.openai, baseURL: v || undefined } })}
                       placeholder="https://api.openai.com/v1"
                     />
                     <TestButton onClick={() => testConnection('openai', setOpenaiStatus)} status={openaiStatus} />
                   </ProviderSection>
-                </div>
-              </details>
 
-              {/* Ollama */}
-              <ProviderSection
-                title="Ollama (Local)"
-                description="Offline, private, no API key. Run `ollama serve` first."
-                status={ollamaStatus}
-              >
-                <TextInput
-                  label="Base URL"
-                  value={creds.ollama?.baseURL || 'http://localhost:11434'}
-                  onChange={v => save({ ...creds, ollama: { ...creds.ollama, baseURL: v } })}
-                  placeholder="http://localhost:11434"
-                />
-                <TextInput
-                  label="Model"
-                  value={creds.ollama?.model || 'llama3.2'}
-                  onChange={v => save({ ...creds, ollama: { ...creds.ollama, model: v } })}
-                  placeholder="llama3.2"
-                />
-                <TestButton onClick={() => testConnection('ollama', setOllamaStatus)} status={ollamaStatus} />
-              </ProviderSection>
-
-              {/* Illustration privacy */}
-              <div className="p-4 rounded-2xl border border-[var(--color-border,#E8E4DC)] bg-[var(--color-surface,#FFFFFF)]">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="text-sm font-semibold text-[var(--color-ink,#1F1F1C)]">
-                      Use pollinations.ai for illustrations
-                    </div>
-                    <p className="text-xs text-[var(--color-muted,#7A756B)] mt-1">
-                      When enabled, workbook cover prompts are sent to pollinations.ai (free, no key). Leave off to use local SVG only.
-                    </p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
-                      checked={!!creds.consent?.pollinations}
-                      onChange={e =>
-                        save({
-                          ...creds,
-                          consent: { ...(creds.consent ?? {}), pollinations: e.target.checked },
-                        })
-                      }
+                  {/* Ollama */}
+                  <ProviderSection
+                    title="Ollama (Local)"
+                    description="Offline, private, no API key. Run `ollama serve` first."
+                    status={ollamaStatus}
+                  >
+                    <TextInput
+                      label="Base URL"
+                      value={creds.ollama?.baseURL || 'http://localhost:11434'}
+                      onChange={(v) => save({ ...creds, ollama: { ...creds.ollama, baseURL: v } })}
+                      placeholder="http://localhost:11434"
                     />
-                    <div className="w-10 h-5 bg-[var(--color-border,#E8E4DC)] rounded-full peer-checked:bg-[var(--color-accent,#CC785C)] transition-colors" />
-                    <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5" />
-                  </label>
+                    <TestButton onClick={() => testConnection('ollama', setOllamaStatus)} status={ollamaStatus} />
+                  </ProviderSection>
                 </div>
-              </div>
+              )}
 
-              <ToolsSection />
+              {activeTab === 'models' && (
+                <div className="space-y-8">
+                  <section>
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--color-muted,#7A756B)] mb-3">
+                      Default Models
+                    </h3>
+                    <p className="text-xs text-[var(--color-muted,#7A756B)] mb-6">
+                      Set the default model to use for each provider. You can also switch these instantly in the chat composer.
+                    </p>
+                    <div className="space-y-6">
+                      <div>
+                        <label className="block text-xs font-semibold text-[var(--color-ink,#1F1F1C)] mb-2">
+                          Gemini Default
+                        </label>
+                        <ModelSelect
+                          value={creds.gemini?.model || modelsFor('gemini')[0]?.id}
+                          models={modelsFor('gemini').map((m) => m.id)}
+                          onChange={(v) => save({ ...creds, gemini: { ...creds.gemini, model: v } })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-[var(--color-ink,#1F1F1C)] mb-2">
+                          Claude Default
+                        </label>
+                        <ModelSelect
+                          value={creds.anthropic?.model || modelsFor('anthropic')[0]?.id}
+                          models={modelsFor('anthropic').map((m) => m.id)}
+                          onChange={(v) => save({ ...creds, anthropic: { ...creds.anthropic, model: v } })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-[var(--color-ink,#1F1F1C)] mb-2">
+                          OpenAI Default
+                        </label>
+                        <ModelSelect
+                          value={creds.openai?.model || modelsFor('openai')[0]?.id}
+                          models={modelsFor('openai').map((m) => m.id)}
+                          onChange={(v) => save({ ...creds, openai: { ...creds.openai, model: v } })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-[var(--color-ink,#1F1F1C)] mb-2">
+                          Ollama Default
+                        </label>
+                        <TextInput
+                          label=""
+                          value={creds.ollama?.model || 'llama3.2'}
+                          onChange={(v) => save({ ...creds, ollama: { ...creds.ollama, model: v } })}
+                          placeholder="llama3.2"
+                        />
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              )}
+
+              {activeTab === 'tools' && <ToolsSection />}
+
+              {activeTab === 'appearance' && (
+                <div className="space-y-8">
+                  <section>
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--color-muted,#7A756B)] mb-3">
+                      Theme & Effects
+                    </h3>
+                    <div className="p-4 rounded-2xl border border-[var(--color-border,#E8E4DC)] bg-[var(--color-surface,#FFFFFF)]">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="text-sm font-semibold text-[var(--color-ink,#1F1F1C)]">
+                            Use pollinations.ai for illustrations
+                          </div>
+                          <p className="text-xs text-[var(--color-muted,#7A756B)] mt-1">
+                            When enabled, workbook cover prompts are sent to pollinations.ai (free, no key). Leave off to use local SVG only.
+                          </p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                          <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={!!creds.consent?.pollinations}
+                            onChange={(e) =>
+                              save({
+                                ...creds,
+                                consent: { ...(creds.consent ?? {}), pollinations: e.target.checked },
+                              })
+                            }
+                          />
+                          <div className="w-10 h-5 bg-[var(--color-border,#E8E4DC)] rounded-full peer-checked:bg-[var(--color-accent,#CC785C)] transition-colors" />
+                          <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5" />
+                        </label>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              )}
+
+              {activeTab === 'about' && (
+                <div className="space-y-8">
+                  <section>
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--color-muted,#7A756B)] mb-3">
+                      About EduSpark
+                    </h3>
+                    <div className="p-4 rounded-2xl border border-[var(--color-border,#E8E4DC)] bg-[var(--color-surface,#FFFFFF)] space-y-4">
+                      <p className="text-sm text-[var(--color-ink,#1F1F1C)] leading-relaxed">
+                        EduSpark is a next-generation AI Workbook Architect designed for educators and curriculum designers. 
+                        It is built on a "Bring Your Own Key" (BYOK) architecture, meaning your data and keys never touch our servers.
+                      </p>
+                      <div className="text-[10px] text-[var(--color-muted,#7A756B)]">
+                        Version 2.5.0 · April 2026
+                      </div>
+                    </div>
+                  </section>
+
+                  <section>
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-rose-700 mb-3">
+                      Danger Zone
+                    </h3>
+                    <div className="p-4 rounded-2xl border border-rose-200 bg-rose-50 space-y-4">
+                      <div>
+                        <h4 className="text-sm font-semibold text-rose-800">Clear all settings</h4>
+                        <p className="text-xs text-rose-700 mt-1">
+                          This will remove all stored API keys and preferences from your browser. This cannot be undone.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (confirm('Are you sure you want to clear all settings? This will delete your API keys.')) {
+                            localStorage.removeItem('eduspark_ai_keys_v1');
+                            localStorage.removeItem('eduspark_onboarding_v1');
+                            window.location.reload();
+                          }
+                        }}
+                        className="px-4 py-2 bg-rose-600 text-white rounded-xl text-xs font-bold hover:bg-rose-700 transition-colors"
+                      >
+                        Reset Application
+                      </button>
+                    </div>
+                  </section>
+                </div>
+              )}
             </div>
           </motion.aside>
         </>
@@ -378,9 +492,14 @@ function KeyInput({
 }) {
   return (
     <div>
-      <label htmlFor={id} className="block text-xs text-[var(--color-muted,#7A756B)] mb-1">
-        API Key
-      </label>
+      <div className="flex items-center justify-between mb-1">
+        <label htmlFor={id} className="block text-xs text-[var(--color-muted,#7A756B)]">
+          API Key
+        </label>
+        <span className="text-[10px] text-[var(--color-accent,#CC785C)] opacity-70">
+          Paste multiple keys separated by comma to rotate
+        </span>
+      </div>
       <div className="relative">
         <input
           id={id}

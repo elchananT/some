@@ -3,19 +3,19 @@ import { BuildWorkbookArgs, ChatMessage, StylePrefs, Workbook } from '@/lib/type
 import { buildContentPagePrompt } from '@/lib/authoring';
 import { WORKBOOK_STYLES } from '@/lib/themes';
 import { AIProvider, ChatStreamChunk, PingResult } from './types';
-import { getKey, getModel } from '@/lib/ai/keys';
+import { getKey, getModel, getRotatingKey } from '@/lib/ai/keys';
 import { classifyError, withBackoff } from '@/lib/ai/errors';
 import { geminiToolDeclarations } from '@/lib/tools/adapters';
 import { runTool } from '@/lib/tools/registry';
 
-const DEFAULT_MODEL = 'gemini-2.5-flash';
+const DEFAULT_MODEL = 'gemini-1.5-flash';
 
-function apiKey(): string {
-  return getKey('gemini') || '';
+function apiKey(attempt = 0): string {
+  return getRotatingKey('gemini', attempt) || '';
 }
 
-function makeClient() {
-  return new GoogleGenAI({ apiKey: apiKey() });
+function makeClient(attempt = 0) {
+  return new GoogleGenAI({ apiKey: apiKey(attempt) });
 }
 
 function chatModel(): string {
@@ -143,8 +143,8 @@ async function* chatStream(
     yield { type: 'status', message: 'Thinking…' };
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const stream = await withBackoff(() =>
-        makeClient().models.generateContentStream({
+      const stream = await withBackoff((attempt) =>
+        makeClient(attempt).models.generateContentStream({
           model: chatModel(),
           contents,
           config,
@@ -254,8 +254,8 @@ async function generateContentPage(
 ): Promise<string> {
   assertKey();
   const prompt = buildContentPagePrompt({ title, objective, type, context, stylePrefs });
-  const res = await withBackoff(() =>
-    makeClient().models.generateContent({ model: utilModel(), contents: prompt })
+  const res = await withBackoff((attempt) =>
+    makeClient(attempt).models.generateContent({ model: utilModel(), contents: prompt })
   );
   return res.text || 'Content generation failed.';
 }
@@ -268,8 +268,8 @@ async function generateSVGIllustration(
 ): Promise<string> {
   assertKey();
   const prompt = `Create a 500x500 viewBox SVG for "${title}" (${description}). Style: ${style}. Palette: ${palette}. Return ONLY raw <svg>...</svg>.`;
-  const res = await withBackoff(() =>
-    makeClient().models.generateContent({ model: utilModel(), contents: prompt })
+  const res = await withBackoff((attempt) =>
+    makeClient(attempt).models.generateContent({ model: utilModel(), contents: prompt })
   );
   let code = res.text || '';
   if (code.includes('```svg')) code = code.split('```svg')[1].split('```')[0].trim();
@@ -281,8 +281,8 @@ async function generateSVGIllustration(
 async function verifyWorkbook(workbook: Workbook): Promise<string> {
   assertKey();
   const prompt = `Evaluate this workbook for level ${workbook.level}. Give a score /10 and suggestions.\n${JSON.stringify(workbook).slice(0, 6000)}`;
-  const res = await withBackoff(() =>
-    makeClient().models.generateContent({ model: utilModel(), contents: prompt })
+  const res = await withBackoff((attempt) =>
+    makeClient(attempt).models.generateContent({ model: utilModel(), contents: prompt })
   );
   return res.text || 'Verification report could not be generated.';
 }
@@ -291,21 +291,23 @@ async function generateChatTitle(messages: ChatMessage[]): Promise<string> {
   if (!messages.length) return 'New Conversation';
   try {
     assertKey();
-    const res = await makeClient().models.generateContent({
-      model: utilModel(),
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              text: `Generate a short (max 5 words) title for this conversation. Output only the title.\n${messages
-                .map(m => `${m.role}: ${m.text}`)
-                .join('\n')}`,
-            },
-          ],
-        },
-      ],
-    });
+    const res = await withBackoff((attempt) =>
+      makeClient(attempt).models.generateContent({
+        model: utilModel(),
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: `Generate a short (max 5 words) title for this conversation. Output only the title.\n${messages
+                  .map((m) => `${m.role}: ${m.text}`)
+                  .join('\n')}`,
+              },
+            ],
+          },
+        ],
+      })
+    );
     return res.text?.replace(/"/g, '').trim() || 'Untitled';
   } catch {
     return 'Untitled';

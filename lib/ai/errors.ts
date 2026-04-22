@@ -88,6 +88,7 @@ export function retryAfterMsOf(e: unknown): number | undefined {
 }
 
 export function classifyError(e: unknown): ClassifiedError {
+  console.error('[AI_ERROR]', e);
   const msg = toMessage(e);
   const lower = msg.toLowerCase();
   const status = statusOf(e);
@@ -109,13 +110,12 @@ export function classifyError(e: unknown): ClassifiedError {
     };
   }
 
-  // Rate-limit
+  // Rate-limit (429 is always a rate limit)
   if (
     status === 429 ||
     lower.includes('rate limit') ||
     lower.includes('rate_limit') ||
-    lower.includes('resource_exhausted') ||
-    lower.includes('quota')
+    lower.includes('resource_exhausted')
   ) {
     const hintMs = retryAfterMsOf(e);
     const hint =
@@ -125,10 +125,50 @@ export function classifyError(e: unknown): ClassifiedError {
     return {
       kind: 'rate_limit',
       userMessage:
-        'Your provider rate-limited this request (free tiers are tight).' +
+        `Your provider rate-limited this request (API Error: ${msg}).` +
         hint +
         ' If this keeps happening, slow down, switch model in the composer, or add another API key in Settings.',
       retryable: true,
+      originalMessage: msg,
+    };
+  }
+
+  // Quota exceeded (can be 403 or 429)
+  if (lower.includes('quota')) {
+    const isHard =
+      status === 403 ||
+      lower.includes('daily') ||
+      lower.includes('monthly') ||
+      lower.includes('total') ||
+      lower.includes('project') ||
+      lower.includes('not enabled') ||
+      lower.includes('disabled');
+
+    const kind: AIErrorKind = isHard ? 'auth' : 'rate_limit';
+    let userMessage = '';
+
+    if (lower.includes('not enabled') || lower.includes('disabled')) {
+      userMessage = `API not enabled for this project. Please enable the Generative AI API in your Google Cloud or AI Studio dashboard. Error: ${msg}`;
+    } else if (isHard) {
+      userMessage = `Quota exceeded (Daily/Total). This API key is out of units for today. If this is a new key, check if billing or the specific model is enabled. Error: ${msg}`;
+    } else {
+      userMessage = `Rate limit hit (Quota per minute). Retrying... (API Error: ${msg})`;
+    }
+
+    return {
+      kind,
+      userMessage,
+      retryable: !isHard,
+      originalMessage: msg,
+    };
+  }
+
+  // Specific "Model not found" handling
+  if (lower.includes('not found') || lower.includes('not_found') || lower.includes('model') && lower.includes('exist')) {
+    return {
+      kind: 'unknown',
+      userMessage: `The selected model (${msg}) is not available for your API key. Try switching to a stable model like Gemini 1.5 Flash in the composer or settings.`,
+      retryable: false,
       originalMessage: msg,
     };
   }
@@ -141,12 +181,12 @@ export function classifyError(e: unknown): ClassifiedError {
     lower.includes('unauthorized') ||
     lower.includes('forbidden') ||
     lower.includes('permission') ||
-    lower.includes('invalid_argument') && lower.includes('key')
+    (lower.includes('invalid_argument') && lower.includes('key'))
   ) {
     return {
       kind: 'auth',
       userMessage:
-        'Authentication failed. Check your API key in Settings and try again.',
+        `Authentication failed (API Error: ${msg}). Check your API key in Settings and try again.`,
       retryable: false,
       originalMessage: msg,
     };
@@ -189,7 +229,7 @@ export function classifyError(e: unknown): ClassifiedError {
  *   - use a shorter ladder (0.5s → 2s → 8s) for transient network errors.
  */
 export async function withBackoff<T>(
-  fn: () => Promise<T>,
+  fn: (attempt: number) => Promise<T>,
   opts: { retries?: number; baseMs?: number; shouldRetry?: (e: unknown) => boolean } = {}
 ): Promise<T> {
   const retries = opts.retries ?? 3;
@@ -203,7 +243,7 @@ export async function withBackoff<T>(
   let lastErr: unknown;
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
-      return await fn();
+      return await fn(attempt);
     } catch (e) {
       lastErr = e;
       if (attempt === retries - 1 || !shouldRetry(e)) throw e;

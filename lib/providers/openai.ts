@@ -7,12 +7,12 @@
 import type { BuildWorkbookArgs, ChatMessage, StylePrefs, Workbook } from '@/lib/types';
 import { buildContentPagePrompt } from '@/lib/authoring';
 import { AIProvider, ChatStreamChunk, PingResult } from './types';
-import { getKey, getModel, getBaseURL } from '@/lib/ai/keys';
-import { classifyError } from '@/lib/ai/errors';
+import { getKey, getModel, getBaseURL, getRotatingKey } from '@/lib/ai/keys';
+import { classifyError, withBackoff } from '@/lib/ai/errors';
 import { OPENAI_TOOLS, SYSTEM_PROMPT } from './schemas';
 
-function apiKey(): string {
-  return getKey('openai') || '';
+function apiKey(attempt = 0): string {
+  return getRotatingKey('openai', attempt) || '';
 }
 
 async function loadSdk(): Promise<typeof import('openai') | null> {
@@ -23,10 +23,10 @@ async function loadSdk(): Promise<typeof import('openai') | null> {
   }
 }
 
-function makeClient(mod: typeof import('openai')) {
+function makeClient(mod: typeof import('openai'), attempt = 0) {
   const Ctor = mod.default;
   return new Ctor({
-    apiKey: apiKey(),
+    apiKey: apiKey(attempt),
     baseURL: getBaseURL('openai'),
     dangerouslyAllowBrowser: true,
   });
@@ -59,14 +59,16 @@ async function* chatStream(
 
     yield { type: 'status', message: 'Thinking…' };
 
-    const stream = await client.chat.completions.create({
-      model: getModel('openai') || 'gpt-4o-mini',
-      messages,
-      stream: true,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      tools: OPENAI_TOOLS as any,
-      tool_choice: 'auto',
-    });
+    const stream = await withBackoff((attempt) =>
+      makeClient(mod, attempt).chat.completions.create({
+        model: getModel('openai') || 'gpt-4o-mini',
+        messages,
+        stream: true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tools: OPENAI_TOOLS as any,
+        tool_choice: 'auto',
+      })
+    );
 
     // Accumulate partial tool calls across deltas (OpenAI streams arguments char-by-char).
     const toolBuffers: Record<number, { name?: string; args: string }> = {};
@@ -148,17 +150,21 @@ async function generateContentPage(
   const mod = await loadSdk();
   if (!mod || !apiKey()) return `<div><h2>${title}</h2><p>${objective}</p></div>`;
   try {
-    const client = makeClient(mod);
-    const res = await client.chat.completions.create({
-      model: getModel('openai') || 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: 'You output clean HTML only, wrapped in a single <div>. No markdown fences.' },
-        {
-          role: 'user',
-          content: buildContentPagePrompt({ title, objective, type, context, stylePrefs }),
-        },
-      ],
-    });
+    const res = await withBackoff((attempt) =>
+      makeClient(mod, attempt).chat.completions.create({
+        model: getModel('openai') || 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You output clean HTML only, wrapped in a single <div>. No markdown fences.',
+          },
+          {
+            role: 'user',
+            content: buildContentPagePrompt({ title, objective, type, context, stylePrefs }),
+          },
+        ],
+      })
+    );
     return res.choices[0]?.message?.content || `<div><h2>${title}</h2></div>`;
   } catch {
     return `<div><h2>${title}</h2><p>${objective}</p></div>`;
@@ -169,14 +175,18 @@ async function verifyWorkbook(workbook: Workbook): Promise<string> {
   const mod = await loadSdk();
   if (!mod || !apiKey()) return 'Verification unavailable (no OpenAI key).';
   try {
-    const client = makeClient(mod);
-    const res = await client.chat.completions.create({
-      model: getModel('openai') || 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: 'You are a pedagogy reviewer. Score /10 and give 3 suggestions.' },
-        { role: 'user', content: `Review for level ${workbook.level}:\n${JSON.stringify(workbook).slice(0, 6000)}` },
-      ],
-    });
+    const res = await withBackoff((attempt) =>
+      makeClient(mod, attempt).chat.completions.create({
+        model: getModel('openai') || 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'You are a pedagogy reviewer. Score /10 and give 3 suggestions.' },
+          {
+            role: 'user',
+            content: `Review for level ${workbook.level}:\n${JSON.stringify(workbook).slice(0, 6000)}`,
+          },
+        ],
+      })
+    );
     return res.choices[0]?.message?.content || 'Verification could not be generated.';
   } catch {
     return 'Verification failed.';
@@ -188,18 +198,19 @@ async function generateChatTitle(messages: ChatMessage[]): Promise<string> {
   const mod = await loadSdk();
   if (!mod || !apiKey()) return 'Untitled';
   try {
-    const client = makeClient(mod);
-    const res = await client.chat.completions.create({
-      model: getModel('openai') || 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'user',
-          content: `Generate a short (max 5 words) title. Output only the title.\n${messages
-            .map(m => `${m.role}: ${m.text}`)
-            .join('\n')}`,
-        },
-      ],
-    });
+    const res = await withBackoff((attempt) =>
+      makeClient(mod, attempt).chat.completions.create({
+        model: getModel('openai') || 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'user',
+            content: `Generate a short (max 5 words) title. Output only the title.\n${messages
+              .map((m) => `${m.role}: ${m.text}`)
+              .join('\n')}`,
+          },
+        ],
+      })
+    );
     return res.choices[0]?.message?.content?.replace(/"/g, '').trim() || 'Untitled';
   } catch {
     return 'Untitled';
@@ -230,21 +241,25 @@ async function summarize(messages: ChatMessage[]): Promise<string> {
   const mod = await loadSdk();
   if (!mod || !apiKey()) return '';
   try {
-    const client = makeClient(mod);
-    const res = await client.chat.completions.create({
-      model: getModel('openai') || 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content:
-            'Summarize the conversation as strict JSON: {"summary": string, "decisions": string[], "openQuestions": string[]}.',
-        },
-        {
-          role: 'user',
-          content: messages.map(m => `${m.role}: ${m.text}`).join('\n').slice(0, 8000),
-        },
-      ],
-    });
+    const res = await withBackoff((attempt) =>
+      makeClient(mod, attempt).chat.completions.create({
+        model: getModel('openai') || 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content:
+              'Summarize the conversation as strict JSON: {"summary": string, "decisions": string[], "openQuestions": string[]}.',
+          },
+          {
+            role: 'user',
+            content: messages
+              .map((m) => `${m.role}: ${m.text}`)
+              .join('\n')
+              .slice(0, 8000),
+          },
+        ],
+      })
+    );
     return res.choices[0]?.message?.content || '';
   } catch {
     return '';

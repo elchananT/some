@@ -15,23 +15,28 @@ export interface ModelOption {
 
 export const MODEL_CATALOG: Partial<Record<ProviderId, ModelOption[]>> = {
   gemini: [
-    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', badge: 'Fast · Free' },
-    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', badge: 'Best' },
-    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+    { id: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro', badge: 'Best' },
+    { id: 'gemini-3-flash', label: 'Gemini 3 Flash', badge: 'Fast' },
+    { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite', badge: 'Free' },
+    { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
   ],
   openai: [
-    { id: 'gpt-4o-mini', label: 'GPT-4o mini', badge: 'Fast' },
-    { id: 'gpt-4o', label: 'GPT-4o', badge: 'Best' },
-    { id: 'gpt-4.1-mini', label: 'GPT-4.1 mini' },
+    { id: 'gpt-5.4', label: 'GPT-5.4', badge: 'Best' },
+    { id: 'gpt-5', label: 'GPT-5', badge: 'Stable' },
+    { id: 'gpt-o4-mini', label: 'GPT-o4 mini', badge: 'Fast' },
+    { id: 'gpt-4o', label: 'GPT-4o' },
   ],
   anthropic: [
-    { id: 'claude-3-5-haiku-latest', label: 'Claude Haiku', badge: 'Fast' },
-    { id: 'claude-3-5-sonnet-latest', label: 'Claude Sonnet', badge: 'Best' },
+    { id: 'claude-4-6-sonnet-latest', label: 'Claude Sonnet 4.6', badge: 'Best' },
+    { id: 'claude-4-6-opus-latest', label: 'Claude Opus 4.6' },
+    { id: 'claude-4-5-haiku-latest', label: 'Claude Haiku 4.5', badge: 'Fast' },
+    { id: 'claude-3-5-sonnet-latest', label: 'Claude Sonnet 3.5' },
   ],
   ollama: [
-    { id: 'llama3.2', label: 'Llama 3.2' },
-    { id: 'llama3.1', label: 'Llama 3.1' },
-    { id: 'qwen2.5', label: 'Qwen 2.5' },
+    { id: 'llama4-maverick', label: 'Llama 4 Maverick', badge: '400B' },
+    { id: 'llama4-scout', label: 'Llama 4 Scout', badge: '17B' },
+    { id: 'deepseek-v3.2', label: 'DeepSeek V3.2' },
+    { id: 'qwen3', label: 'Qwen 3' },
   ],
   mock: [{ id: 'demo', label: 'Demo' }],
 };

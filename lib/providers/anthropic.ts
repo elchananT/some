@@ -16,14 +16,14 @@
 import type { BuildWorkbookArgs, ChatMessage, StylePrefs, Workbook } from '@/lib/types';
 import { buildContentPagePrompt } from '@/lib/authoring';
 import { AIProvider, ChatStreamChunk, PingResult } from './types';
-import { getKey, getModel } from '@/lib/ai/keys';
-import { classifyError } from '@/lib/ai/errors';
+import { getKey, getModel, getRotatingKey } from '@/lib/ai/keys';
+import { classifyError, withBackoff } from '@/lib/ai/errors';
 import { ANTHROPIC_TOOLS, SYSTEM_PROMPT } from './schemas';
 
 type AnthropicMod = typeof import('@anthropic-ai/sdk');
 
-function apiKey(): string {
-  return getKey('anthropic') || '';
+function apiKey(attempt = 0): string {
+  return getRotatingKey('anthropic', attempt) || '';
 }
 
 async function loadSdk(): Promise<AnthropicMod | null> {
@@ -34,10 +34,10 @@ async function loadSdk(): Promise<AnthropicMod | null> {
   }
 }
 
-function makeClient(mod: AnthropicMod) {
+function makeClient(mod: AnthropicMod, attempt = 0) {
   const Ctor = mod.default;
   return new Ctor({
-    apiKey: apiKey(),
+    apiKey: apiKey(attempt),
     dangerouslyAllowBrowser: true,
   });
 }
@@ -74,23 +74,25 @@ async function* chatStream(
   }
 
   try {
-    const client = makeClient(mod);
     yield { type: 'status', message: 'Thinking…' };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const stream = (client.messages as any).stream({
-      model: getModel('anthropic') || 'claude-3-5-sonnet-latest',
-      max_tokens: 4096,
-      system: [
-        {
-          type: 'text',
-          text: SYSTEM_PROMPT,
-          cache_control: { type: 'ephemeral' },
-        },
-      ],
+    const stream = await withBackoff((attempt) => {
+      const client = makeClient(mod, attempt);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      tools: ANTHROPIC_TOOLS as any,
-      messages: mapMessages(history, prompt),
+      return (client.messages as any).stream({
+        model: getModel('anthropic') || 'claude-3-5-sonnet-latest',
+        max_tokens: 4096,
+        system: [
+          {
+            type: 'text',
+            text: SYSTEM_PROMPT,
+            cache_control: { type: 'ephemeral' },
+          },
+        ],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tools: ANTHROPIC_TOOLS as any,
+        messages: mapMessages(history, prompt),
+      });
     });
 
     let aggregatedText = '';
@@ -175,12 +177,14 @@ async function simpleText(prompt: string, system?: string): Promise<string> {
   const mod = await loadSdk();
   if (!mod || !apiKey()) return '';
   try {
-    const client = makeClient(mod);
-    const res = await client.messages.create({
-      model: getModel('anthropic') || 'claude-3-5-sonnet-latest',
-      max_tokens: 1024,
-      system: system ?? 'You are a helpful assistant.',
-      messages: [{ role: 'user', content: prompt }],
+    const res = await withBackoff((attempt) => {
+      const client = makeClient(mod, attempt);
+      return client.messages.create({
+        model: getModel('anthropic') || 'claude-3-5-sonnet-latest',
+        max_tokens: 1024,
+        system: system ?? 'You are a helpful assistant.',
+        messages: [{ role: 'user', content: prompt }],
+      });
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const block = (res.content as any[]).find((b) => b.type === 'text');

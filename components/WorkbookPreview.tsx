@@ -8,20 +8,17 @@ import {
   ListOrdered, Heading2, Columns2, Square, Layout, Palette, 
   Smile, Cpu, Star, Type, Sparkles
 } from 'lucide-react';
+import 'katex/dist/katex.min.css';
+import katex from 'katex';
+// @ts-ignore
+import renderMathInElement from 'katex/dist/contrib/auto-render.js';
+import mermaid from 'mermaid';
 import ReactMarkdown from 'react-markdown';
 import { Workbook, PageLayout, PageTheme } from '@/lib/types';
 import SVGIllustration from './SVGIllustration';
 import { exportToPDF, exportToDocx } from '@/lib/export';
 import SelectionToolbar from './artifact/SelectionToolbar';
 import { sanitizeHTML, sanitizeCSS } from '@/lib/security/sanitize';
-
-// Extend Window to avoid TS errors for external scripts
-declare global {
-  interface Window {
-    renderMathInElement?: any;
-    mermaid?: any;
-  }
-}
 
 export default function WorkbookPreview({ workbook: initialWorkbook }: { workbook: Workbook }) {
   const [workbook, setWorkbook] = useState<Workbook>(initialWorkbook);
@@ -74,30 +71,28 @@ export default function WorkbookPreview({ workbook: initialWorkbook }: { workboo
 
   // Run render engines whenever workbook changes or is mounted
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-       if (window.renderMathInElement) {
-         try {
-           window.renderMathInElement(document.getElementById('workbook-container'), {
-             delimiters: [
-               {left: '$$', right: '$$', display: true},
-               {left: '$', right: '$', display: false},
-               {left: '\\(', right: '\\)', display: false},
-               {left: '\\[', right: '\\]', display: true}
-             ],
-             throwOnError: false
-           });
-         } catch (e) {
-           console.error("Katex error", e);
-         }
-       }
-       if (window.mermaid) {
-         try {
-           window.mermaid.initialize({startOnLoad: false, theme: 'neutral'});
-           window.mermaid.run({ querySelector: '.mermaid' });
-         } catch (e) {
-           console.error("Mermaid error", e);
-         }
-       }
+    const container = document.getElementById('workbook-container');
+    if (container) {
+      try {
+        renderMathInElement(container, {
+          delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false},
+            {left: '\\(', right: '\\)', display: false},
+            {left: '\\[', right: '\\]', display: true}
+          ],
+          throwOnError: false
+        });
+      } catch (e) {
+        console.error("Katex error", e);
+      }
+    }
+    
+    try {
+      mermaid.initialize({startOnLoad: false, theme: 'neutral'});
+      mermaid.run({ querySelector: '.mermaid' });
+    } catch (e) {
+      console.error("Mermaid error", e);
     }
   }, [workbook, activeTab]);
 

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import Script from 'next/script';
 import './globals.css';
+import 'katex/dist/katex.min.css';
 
 // Use system font stacks via CSS variables to keep the app offline-friendly (no Google Fonts fetch).
 const inter = { variable: 'font-sans-var' };
@@ -15,14 +15,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} ${serif.variable}`}>
-      <head>
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" />
-      </head>
+      <head />
       <body suppressHydrationWarning>
         {children}
-        <Script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" strategy="beforeInteractive" />
-        <Script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" strategy="beforeInteractive" />
-        <Script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js" strategy="beforeInteractive" />
       </body>
     </html>
   );
