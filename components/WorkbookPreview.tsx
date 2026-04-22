@@ -13,6 +13,7 @@ import { Workbook, PageLayout, PageTheme } from '@/lib/types';
 import SVGIllustration from './SVGIllustration';
 import { exportToPDF, exportToDocx } from '@/lib/export';
 import SelectionToolbar from './artifact/SelectionToolbar';
+import { sanitizeHTML, sanitizeCSS } from '@/lib/security/sanitize';
 
 // Extend Window to avoid TS errors for external scripts
 declare global {
@@ -179,7 +180,7 @@ export default function WorkbookPreview({ workbook: initialWorkbook }: { workboo
                     className={`workbook-page relative p-12 rounded-lg transition-all duration-300 ${page.layout === 'full-width-image' ? 'px-0 pt-0' : 'border shadow-sm'} ${themeClass}`}
                   >
                     {page.theme === 'custom' && page.customCss && (
-                      <style dangerouslySetInnerHTML={{ __html: `#page-container-${page.id} { ${page.customCss} }` }} />
+                      <style dangerouslySetInnerHTML={{ __html: `#page-container-${page.id} { ${sanitizeCSS(page.customCss)} }` }} />
                     )}
                     {isEditing && (
                       <div className="absolute -top-12 right-0 flex items-center gap-2 bg-white border border-border shadow-md p-1.5 rounded-lg z-20 text-xs text-muted">
@@ -266,8 +267,8 @@ export default function WorkbookPreview({ workbook: initialWorkbook }: { workboo
                             `}
                             contentEditable={isEditing}
                             suppressContentEditableWarning
-                            onBlur={(e) => handleContentChange(page.id, e.currentTarget.innerHTML)}
-                            dangerouslySetInnerHTML={{ __html: page.content }} 
+                            onBlur={(e) => handleContentChange(page.id, sanitizeHTML(e.currentTarget.innerHTML))}
+                            dangerouslySetInnerHTML={{ __html: sanitizeHTML(page.content) }}
                           />
 
                           {/* Block Renderer (if any) */}
@@ -281,7 +282,7 @@ export default function WorkbookPreview({ workbook: initialWorkbook }: { workboo
                                     style={{ ...block.style }}
                                   >
                                     {block.type === 'heading' && <h3 className="text-xl font-serif italic mb-2">{block.content}</h3>}
-                                    {block.type === 'text' && <div dangerouslySetInnerHTML={{ __html: block.content }} />}
+                                    {block.type === 'text' && <div dangerouslySetInnerHTML={{ __html: sanitizeHTML(block.content) }} />}
                                     {block.type === 'image' && block.content && <img src={block.content} className="max-w-full rounded-lg" alt="" />}
                                   </div>
                                 ))}

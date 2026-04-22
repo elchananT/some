@@ -2,6 +2,7 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { saveAs } from 'file-saver';
 import { Workbook } from './types';
 import { workbookToHTMLStandalone } from './export_utils';
+import { sanitizeDocument, sanitizeHTML } from './security/sanitize';
 
 /**
  * Exports the workbook to a PDF by rendering the same standalone HTML that
@@ -32,8 +33,13 @@ export async function exportToPDF(
       if (!container) return;
       const printWin = window.open('', '_blank');
       if (!printWin) return;
+      // SECURITY: container.innerHTML can contain AI-authored markup — sanitize
+      // before writing into a same-origin window that would otherwise execute
+      // any injected <script>/on*= and steal BYOK keys from localStorage.
+      const safeTitle = String(filename).replace(/[<>&"]/g, '');
+      const safeBody = sanitizeHTML(container.innerHTML);
       printWin.document.write(
-        `<html><head><title>${filename}</title></head><body>${container.innerHTML}</body></html>`,
+        `<html><head><title>${safeTitle}</title></head><body>${safeBody}</body></html>`,
       );
       printWin.document.close();
       printWin.focus();
@@ -54,7 +60,7 @@ export async function exportToPDF(
   };
   const html2pdf: Html2Pdf = mod.default ?? (mod as unknown as Html2Pdf);
 
-  const html = workbookToHTMLStandalone(workbook);
+  const html = sanitizeDocument(workbookToHTMLStandalone(workbook));
   const host = document.createElement('div');
   host.style.position = 'fixed';
   host.style.left = '-10000px';

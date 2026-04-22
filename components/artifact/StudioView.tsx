@@ -13,6 +13,7 @@ import { Workbook, WorkbookPage, ContentBlock, BlockType, PageLayout } from '@/l
 import { workbookToHTMLStandalone, workbookToMarkdown, workbookToText } from '@/lib/export_utils';
 import html2pdf from 'html2pdf.js';
 import RichTextEditor from './RichTextEditor';
+import { sanitizeDocument, sanitizeHTML } from '@/lib/security/sanitize';
 
 interface StudioViewProps {
   workbook: Workbook;
@@ -114,7 +115,7 @@ export default function StudioView({ workbook, onUpdateWorkbook, onExit }: Studi
       // Render the whole workbook HTML into an off-screen, sized container.
       // Giving html2pdf a real layout context avoids the "everything crammed
       // into one half page" look we get when handing it a detached element.
-      const html = workbookToHTMLStandalone(workbook);
+      const html = sanitizeDocument(workbookToHTMLStandalone(workbook));
       const host = document.createElement('div');
       host.style.position = 'fixed';
       host.style.left = '-10000px';
@@ -150,7 +151,7 @@ export default function StudioView({ workbook, onUpdateWorkbook, onExit }: Studi
   };
 
   const handleExportHTML = () => {
-    const html = workbookToHTMLStandalone(workbook);
+    const html = sanitizeDocument(workbookToHTMLStandalone(workbook));
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -302,7 +303,7 @@ export default function StudioView({ workbook, onUpdateWorkbook, onExit }: Studi
 
             {/* Block Base Layer (Legacy Content) */}
             {!page.blocks?.length && (
-              <div className="prose prose-stone max-w-none" dangerouslySetInnerHTML={{ __html: page.content }} />
+              <div className="prose prose-stone max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeHTML(page.content) }} />
             )}
 
             {/* Blocks Layer */}
@@ -547,9 +548,9 @@ function CanvasBlock({ block, isEditMode, isSelected, activeTool, onSelect, onUp
           <h2 
             contentEditable={isEditMode}
             suppressContentEditableWarning
-            onBlur={(e) => onUpdate({ content: e.currentTarget.innerHTML })}
+            onBlur={(e) => onUpdate({ content: sanitizeHTML(e.currentTarget.innerHTML) })}
             className="text-2xl font-serif italic font-bold outline-none min-w-[100px]"
-            dangerouslySetInnerHTML={{ __html: block.content }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHTML(block.content) }}
           />
         )}
         {block.type === 'image' && (
