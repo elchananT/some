@@ -8,7 +8,7 @@ import { pullModel } from '@/lib/providers/ollama_pull';
 import { setActiveProviderId } from '@/lib/providers';
 import { readCreds, writeCreds, markOnboardingComplete } from '@/lib/ai/keys';
 
-const RECOMMENDED_MODELS = ['llama3.2', 'qwen2.5', 'gemma2', 'llava', 'phi3'];
+const RECOMMENDED_MODELS = ['gemma4', 'gemma4:e4b', 'llama4-scout', 'qwen3', 'gemma2', 'llama3.2'];
 
 interface Props {
   onDone: () => void;
@@ -29,11 +29,11 @@ function detectOS(): 'mac' | 'linux' | 'windows' | 'unknown' {
 export default function OllamaSetupStep({ onDone, onBack }: Props) {
   const initial = readCreds().ollama ?? {};
   const [baseURL, setBaseURL] = useState(initial.baseURL ?? 'http://localhost:11434');
-  const [model, setModel] = useState(initial.model ?? 'llama3.2');
+  const [model, setModel] = useState(initial.model ?? 'gemma4');
   const [status, setStatus] = useState<Status>('idle');
   const [message, setMessage] = useState('');
   const [availableModels, setAvailableModels] = useState<string[]>([]);
-  const [pullTarget, setPullTarget] = useState('llama3.2');
+  const [pullTarget, setPullTarget] = useState('gemma4');
   const [pulling, setPulling] = useState(false);
   const [pullPercent, setPullPercent] = useState(0);
   const [pullStatus, setPullStatus] = useState('');

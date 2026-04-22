@@ -33,6 +33,8 @@ export const MODEL_CATALOG: Partial<Record<ProviderId, ModelOption[]>> = {
     { id: 'claude-3-5-sonnet-latest', label: 'Claude Sonnet 3.5' },
   ],
   ollama: [
+    { id: 'gemma4', label: 'Gemma 4', badge: 'Best' },
+    { id: 'gemma4:e4b', label: 'Gemma 4 Fast', badge: 'Fast' },
     { id: 'llama4-maverick', label: 'Llama 4 Maverick', badge: '400B' },
     { id: 'llama4-scout', label: 'Llama 4 Scout', badge: '17B' },
     { id: 'deepseek-v3.2', label: 'DeepSeek V3.2' },

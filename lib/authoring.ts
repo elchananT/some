@@ -103,5 +103,20 @@ Create a ${type} page titled "${title}".
 Objective: ${objective}
 Context: ${context}
 
-Return ONLY the page body HTML wrapped in a single <div>. No markdown fences, no commentary.`;
+Return ONLY the page body HTML wrapped in a single <section class="page">. No markdown fences, no commentary, no preamble. Just the code.`;
+}
+
+/**
+ * Clean up LLM output by removing markdown fences and extracting the 
+ * <section class="page"> block.
+ */
+export function cleanHTML(text: string): string {
+  let cleaned = text.replace(/```html/g, '').replace(/```/g, '').trim();
+  const startIdx = cleaned.indexOf('<section');
+  if (startIdx !== -1) {
+    const endIdx = cleaned.lastIndexOf('</section>');
+    if (endIdx !== -1) return cleaned.slice(startIdx, endIdx + 10);
+    return cleaned.slice(startIdx);
+  }
+  return cleaned;
 }

@@ -7,9 +7,14 @@
 import type { BuildWorkbookArgs, ChatMessage, StylePrefs, Workbook } from '@/lib/types';
 import { buildContentPagePrompt } from '@/lib/authoring';
 import { AIProvider, ChatStreamChunk, PingResult } from './types';
+import { mockProvider } from './mock';
 import { getKey, getModel, getBaseURL, getRotatingKey } from '@/lib/ai/keys';
 import { classifyError, withBackoff } from '@/lib/ai/errors';
 import { OPENAI_TOOLS, SYSTEM_PROMPT } from './schemas';
+import { openaiTools } from '@/lib/tools/adapters';
+import { runTool } from '@/lib/tools/registry';
+
+const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 function apiKey(attempt = 0): string {
   return getRotatingKey('openai', attempt) || '';
@@ -47,8 +52,9 @@ async function* chatStream(
   }
 
   try {
-    const client = makeClient(mod);
-    const messages = [
+    const TERMINAL_TOOLS = new Set(['propose_roadmap', 'build_workbook']);
+    const MAX_TOOL_ROUNDS = 3;
+    const messages: any[] = [
       { role: 'system' as const, content: SYSTEM_PROMPT },
       ...history.map(m => ({
         role: (m.role === 'model' ? 'assistant' : 'user') as 'assistant' | 'user',
@@ -57,82 +63,102 @@ async function* chatStream(
       { role: 'user' as const, content: prompt },
     ];
 
-    yield { type: 'status', message: 'Thinking…' };
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      yield { type: 'status', message: round === 0 ? 'Thinking…' : 'Synthesizing…' };
+      await sleep(800);
 
-    const stream = await withBackoff((attempt) =>
-      makeClient(mod, attempt).chat.completions.create({
-        model: getModel('openai') || 'gpt-4o-mini',
-        messages,
-        stream: true,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        tools: OPENAI_TOOLS as any,
-        tool_choice: 'auto',
-      })
-    );
+      const stream = await withBackoff((attempt) =>
+        makeClient(mod, attempt).chat.completions.create({
+          model: getModel('openai') || 'gpt-4o-mini',
+          messages,
+          stream: true,
+          tools: [
+            ...OPENAI_TOOLS,
+            ...openaiTools(),
+          ] as any,
+          tool_choice: 'auto',
+        })
+      );
 
-    // Accumulate partial tool calls across deltas (OpenAI streams arguments char-by-char).
-    const toolBuffers: Record<number, { name?: string; args: string }> = {};
-    const announced = new Set<string>();
-    let aggregatedText = '';
-    let sawStyleTrigger = false;
+      // Accumulate partial tool calls across deltas (OpenAI streams arguments char-by-char).
+      const toolBuffers: Record<number, { id?: string; name?: string; args: string }> = {};
+      const announced = new Set<string>();
+      let aggregatedText = '';
+      let sawStyleTrigger = false;
 
-    for await (const chunk of stream) {
-      const delta = chunk.choices?.[0]?.delta;
-      if (!delta) continue;
+      for await (const chunk of stream) {
+        const delta = chunk.choices?.[0]?.delta;
+        if (!delta) continue;
 
-      if (delta.content) {
-        aggregatedText += delta.content;
-        if (!sawStyleTrigger && /choose a style|design system options/i.test(aggregatedText)) {
-          sawStyleTrigger = true;
-          yield { type: 'trigger_style_selection' };
+        if (delta.content) {
+          aggregatedText += delta.content;
+          if (!sawStyleTrigger && /choose a style|design system options/i.test(aggregatedText)) {
+            sawStyleTrigger = true;
+            yield { type: 'trigger_style_selection' };
+          }
+          yield { type: 'text', text: delta.content, delta: true };
         }
-        yield { type: 'text', text: delta.content, delta: true };
-      }
 
-      if (delta.tool_calls) {
-        for (const tc of delta.tool_calls) {
-          const idx = typeof tc.index === 'number' ? tc.index : 0;
-          if (!toolBuffers[idx]) toolBuffers[idx] = { args: '' };
-          if (tc.function?.name) {
-            toolBuffers[idx].name = tc.function.name;
-            if (!announced.has(tc.function.name)) {
-              announced.add(tc.function.name);
-              yield { type: 'tool_breadcrumb', label: `Calling ${tc.function.name}` };
+        if (delta.tool_calls) {
+          for (const tc of delta.tool_calls) {
+            const idx = typeof tc.index === 'number' ? tc.index : 0;
+            if (!toolBuffers[idx]) toolBuffers[idx] = { args: '' };
+            if (tc.id) toolBuffers[idx].id = tc.id;
+            if (tc.function?.name) {
+              toolBuffers[idx].name = tc.function.name;
+              if (!announced.has(tc.function.name)) {
+                announced.add(tc.function.name);
+                yield { type: 'tool_breadcrumb', label: `Executing ${tc.function.name}…` };
+              }
+            }
+            if (tc.function?.arguments) {
+              toolBuffers[idx].args += tc.function.arguments;
             }
           }
-          if (tc.function?.arguments) {
-            toolBuffers[idx].args += tc.function.arguments;
+        }
+      }
+
+      // After stream ends: check for tool calls
+      const completed = Object.values(toolBuffers).filter(t => t.name && t.args);
+      if (completed.length > 0) {
+        // Add model's turn with tool calls to history
+        messages.push({
+          role: 'assistant',
+          tool_calls: completed.map(t => ({
+            id: t.id,
+            type: 'function',
+            function: { name: t.name, arguments: t.args },
+          })),
+        });
+
+        for (const t of completed) {
+          const name = t.name!;
+          const args = JSON.parse(t.args);
+
+          if (TERMINAL_TOOLS.has(name)) {
+            if (name === 'propose_roadmap') {
+              yield { type: 'roadmap', roadmap: args as any };
+              return;
+            }
+            if (name === 'build_workbook') {
+              yield { type: 'function_call', args: args as BuildWorkbookArgs };
+              return;
+            }
           }
-        }
-      }
-    }
 
-    // After stream ends: dispatch the last complete tool call (if any).
-    const completed = Object.values(toolBuffers).filter(t => t.name && t.args);
-    if (completed.length > 0) {
-      const last = completed[completed.length - 1];
-      try {
-        const args = JSON.parse(last.args);
-        if (last.name === 'propose_roadmap') {
-          yield { type: 'roadmap', roadmap: args };
-          return;
+          const toolResult = await runTool(name, args);
+          messages.push({
+            role: 'tool',
+            tool_call_id: t.id,
+            content: typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult),
+          });
         }
-        if (last.name === 'build_workbook') {
-          yield { type: 'function_call', args: args as BuildWorkbookArgs };
-          return;
-        }
-      } catch (e) {
-        yield {
-          type: 'error',
-          kind: 'unknown',
-          text: 'OpenAI returned a malformed tool-call payload.',
-        };
-        return;
+        // Loop back to next round
+        continue;
       }
-    }
 
-    if (!aggregatedText.trim()) {
-      yield { type: 'text', text: "I'm having trouble analyzing that request." };
+      // No tool calls, finish
+      break;
     }
   } catch (e: unknown) {
     const c = classifyError(e);
@@ -148,15 +174,17 @@ async function generateContentPage(
   stylePrefs?: StylePrefs
 ): Promise<string> {
   const mod = await loadSdk();
-  if (!mod || !apiKey()) return `<div><h2>${title}</h2><p>${objective}</p></div>`;
+  if (!mod || !apiKey()) return mockProvider.generateContentPage(title, objective, type, context, stylePrefs);
   try {
+    const { buildContentPagePrompt, cleanHTML } = await import('@/lib/authoring');
     const res = await withBackoff((attempt) =>
       makeClient(mod, attempt).chat.completions.create({
         model: getModel('openai') || 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
-            content: 'You output clean HTML only, wrapped in a single <div>. No markdown fences.',
+            content:
+              'You are an educational content author. Output clean HTML only, starting with <section class="page">. No preamble, no commentary, no markdown fences.',
           },
           {
             role: 'user',
@@ -165,9 +193,12 @@ async function generateContentPage(
         ],
       })
     );
-    return res.choices[0]?.message?.content || `<div><h2>${title}</h2></div>`;
+    const out = res.choices[0]?.message?.content || '';
+    const cleaned = cleanHTML(out);
+    if (cleaned && cleaned.includes('<')) return cleaned;
+    return mockProvider.generateContentPage(title, objective, type, context, stylePrefs);
   } catch {
-    return `<div><h2>${title}</h2><p>${objective}</p></div>`;
+    return mockProvider.generateContentPage(title, objective, type, context, stylePrefs);
   }
 }
 

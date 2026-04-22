@@ -5,6 +5,8 @@ import { getActiveProviderId } from '@/lib/providers';
 import { runWithConcurrency } from './concurrency';
 import type { PipelineHooks } from './types';
 
+const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+
 /**
  * Per-provider concurrency caps for page drafting.
  *
@@ -100,9 +102,11 @@ export async function runPipeline(
   hooks.onStage('composing');
   hooks.onPhase(`Drafting ${total} pages · ${cap} in parallel`);
   hooks.onBreadcrumb(`Outline ready · ${total} pages`);
+  await sleep(1200);
 
   const draftTasks = args.pages.map((pageInfo, i) => async () => {
     hooks.onBreadcrumb(`Drafting p${i + 1}: ${pageInfo.title}`);
+      await sleep(Math.random() * 800 + 400); // Artificial delay to slow down the process
     const content = await generateContentPage(
       pageInfo.title,
       pageInfo.objective,

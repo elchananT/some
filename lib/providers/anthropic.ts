@@ -16,9 +16,14 @@
 import type { BuildWorkbookArgs, ChatMessage, StylePrefs, Workbook } from '@/lib/types';
 import { buildContentPagePrompt } from '@/lib/authoring';
 import { AIProvider, ChatStreamChunk, PingResult } from './types';
+import { mockProvider } from './mock';
 import { getKey, getModel, getRotatingKey } from '@/lib/ai/keys';
 import { classifyError, withBackoff } from '@/lib/ai/errors';
 import { ANTHROPIC_TOOLS, SYSTEM_PROMPT } from './schemas';
+import { anthropicTools } from '@/lib/tools/adapters';
+import { runTool } from '@/lib/tools/registry';
+
+const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 type AnthropicMod = typeof import('@anthropic-ai/sdk');
 
@@ -74,98 +79,118 @@ async function* chatStream(
   }
 
   try {
-    yield { type: 'status', message: 'Thinking…' };
+    const TERMINAL_TOOLS = new Set(['propose_roadmap', 'build_workbook']);
+    const MAX_TOOL_ROUNDS = 3;
+    const messages: any[] = mapMessages(history, prompt);
 
-    const stream = await withBackoff((attempt) => {
-      const client = makeClient(mod, attempt);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (client.messages as any).stream({
-        model: getModel('anthropic') || 'claude-3-5-sonnet-latest',
-        max_tokens: 4096,
-        system: [
-          {
-            type: 'text',
-            text: SYSTEM_PROMPT,
-            cache_control: { type: 'ephemeral' },
-          },
-        ],
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        tools: ANTHROPIC_TOOLS as any,
-        messages: mapMessages(history, prompt),
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      yield { type: 'status', message: round === 0 ? 'Thinking…' : 'Synthesizing…' };
+      await sleep(1000);
+
+      const stream = await withBackoff((attempt) => {
+        const client = makeClient(mod, attempt);
+        return (client.messages as any).stream({
+          model: getModel('anthropic') || 'claude-3-5-sonnet-latest',
+          max_tokens: 4096,
+          system: [
+            {
+              type: 'text',
+              text: SYSTEM_PROMPT,
+              cache_control: { type: 'ephemeral' },
+            },
+          ],
+          tools: [
+            ...ANTHROPIC_TOOLS,
+            ...anthropicTools(),
+          ] as any,
+          messages,
+        });
       });
-    });
 
-    let aggregatedText = '';
-    let sawStyleTrigger = false;
-    const announcedTools = new Set<string>();
+      let aggregatedText = '';
+      let sawStyleTrigger = false;
+      const announcedTools = new Set<string>();
+      const toolBlocks: Record<number, { id: string; name: string; json: string }> = {};
 
-    // Track in-flight tool_use blocks by index so we can reassemble
-    // partial_json deltas into a full JSON string.
-    const toolBlocks: Record<number, { name: string; json: string }> = {};
+      for await (const event of stream as AsyncIterable<any>) {
+        if (!event || typeof event !== 'object') continue;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for await (const event of stream as AsyncIterable<any>) {
-      if (!event || typeof event !== 'object') continue;
-
-      if (event.type === 'content_block_start') {
-        const cb = event.content_block;
-        if (cb?.type === 'tool_use') {
-          toolBlocks[event.index] = { name: cb.name, json: '' };
-          if (!announcedTools.has(cb.name)) {
-            announcedTools.add(cb.name);
-            yield { type: 'tool_breadcrumb', label: `Calling ${cb.name}` };
+        if (event.type === 'content_block_start') {
+          const cb = event.content_block;
+          if (cb?.type === 'tool_use') {
+            toolBlocks[event.index] = { id: cb.id, name: cb.name, json: '' };
+            if (!announcedTools.has(cb.name)) {
+              announcedTools.add(cb.name);
+              yield { type: 'tool_breadcrumb', label: `Executing ${cb.name}…` };
+            }
           }
+          continue;
         }
+
+        if (event.type === 'content_block_delta') {
+          const d = event.delta;
+          if (!d) continue;
+          if (d.type === 'text_delta' && typeof d.text === 'string') {
+            aggregatedText += d.text;
+            if (!sawStyleTrigger && /choose a style|design system options/i.test(aggregatedText)) {
+              sawStyleTrigger = true;
+              yield { type: 'trigger_style_selection' };
+            }
+            yield { type: 'text', text: d.text, delta: true };
+          } else if (d.type === 'input_json_delta' && typeof d.partial_json === 'string') {
+            const buf = toolBlocks[event.index];
+            if (buf) buf.json += d.partial_json;
+          }
+          continue;
+        }
+      }
+
+      // Check for tool calls
+      const completed = Object.values(toolBlocks).filter(t => t.name && t.json);
+      if (completed.length > 0) {
+        // Add model's turn to history
+        messages.push({
+          role: 'assistant',
+          content: completed.map(t => ({
+            type: 'tool_use',
+            id: t.id,
+            name: t.name,
+            input: JSON.parse(t.json),
+          })),
+        });
+
+        for (const t of completed) {
+          const name = t.name;
+          const args = JSON.parse(t.json);
+
+          if (TERMINAL_TOOLS.has(name)) {
+            if (name === 'propose_roadmap') {
+              yield { type: 'roadmap', roadmap: args as any };
+              return;
+            }
+            if (name === 'build_workbook') {
+              yield { type: 'function_call', args: args as BuildWorkbookArgs };
+              return;
+            }
+          }
+
+          const toolResult = await runTool(name, args);
+          messages.push({
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: t.id,
+                content: typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult),
+              },
+            ],
+          });
+        }
+        // Loop back
         continue;
       }
-
-      if (event.type === 'content_block_delta') {
-        const d = event.delta;
-        if (!d) continue;
-        if (d.type === 'text_delta' && typeof d.text === 'string') {
-          aggregatedText += d.text;
-          if (
-            !sawStyleTrigger &&
-            /choose a style|design system options/i.test(aggregatedText)
-          ) {
-            sawStyleTrigger = true;
-            yield { type: 'trigger_style_selection' };
-          }
-          yield { type: 'text', text: d.text, delta: true };
-        } else if (d.type === 'input_json_delta' && typeof d.partial_json === 'string') {
-          const buf = toolBlocks[event.index];
-          if (buf) buf.json += d.partial_json;
-        }
-        continue;
-      }
-    }
-
-    // Emit final tool call (last one wins, matching openai.ts semantics).
-    const completed = Object.values(toolBlocks).filter((t) => t.name && t.json);
-    if (completed.length > 0) {
-      const last = completed[completed.length - 1];
-      try {
-        const args = JSON.parse(last.json);
-        if (last.name === 'propose_roadmap') {
-          yield { type: 'roadmap', roadmap: args };
-          return;
-        }
-        if (last.name === 'build_workbook') {
-          yield { type: 'function_call', args: args as BuildWorkbookArgs };
-          return;
-        }
-      } catch {
-        yield {
-          type: 'error',
-          kind: 'unknown',
-          text: 'Claude returned a malformed tool-call payload.',
-        };
-        return;
-      }
-    }
-
-    if (!aggregatedText.trim()) {
-      yield { type: 'text', text: "I'm having trouble analyzing that request." };
+      // No tool calls, finish
+      break;
     }
   } catch (e: unknown) {
     const c = classifyError(e);
@@ -201,11 +226,14 @@ async function generateContentPage(
   context: string,
   stylePrefs?: StylePrefs
 ): Promise<string> {
+  const { buildContentPagePrompt, cleanHTML } = await import('@/lib/authoring');
   const text = await simpleText(
     buildContentPagePrompt({ title, objective, type, context, stylePrefs }),
-    'You output clean HTML only, wrapped in a single <div>. No markdown fences.'
+    'You are an educational content author. Output clean HTML only, starting with <section class="page">. No preamble, no commentary, no markdown fences.'
   );
-  return text || `<div><h2>${title}</h2><p>${objective}</p></div>`;
+  const cleaned = cleanHTML(text);
+  if (cleaned && cleaned.includes('<')) return cleaned;
+  return mockProvider.generateContentPage(title, objective, type, context, stylePrefs);
 }
 
 async function verifyWorkbook(workbook: Workbook): Promise<string> {

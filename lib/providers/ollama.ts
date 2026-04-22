@@ -1,7 +1,10 @@
-import { ChatMessage, Workbook } from '@/lib/types';
+import { ChatMessage, StylePrefs, Workbook } from '@/lib/types';
 import { AIProvider, ChatStreamChunk, PingResult } from './types';
 import { mockProvider } from './mock';
 import { getBaseURL, getModel } from '@/lib/ai/keys';
+import { getActiveToolDefinitions, runTool } from '@/lib/tools/registry';
+
+const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 function baseUrl(): string {
   return (
@@ -14,7 +17,7 @@ function modelName(): string {
   return (
     getModel('ollama') ||
     (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_OLLAMA_MODEL) ||
-    'llama3.2'
+    'gemma4'
   );
 }
 
@@ -63,48 +66,90 @@ async function* chatStream(
   history: ChatMessage[],
   prompt: string
 ): AsyncGenerator<ChatStreamChunk, void, unknown> {
-  // Reuse the mock orchestrator for flow control (style gallery, roadmap,
-  // build trigger), but replace plain text chunks with real token streaming.
-  for await (const chunk of mockProvider.chatStream(history, prompt)) {
-    if (chunk.type === 'text') {
-      yield { type: 'status', message: `Thinking locally with ${modelName()}…` };
-      const system =
-        'You are EduSpark, a concise educational curriculum designer. ' +
-        'Reply in 2-4 short sentences. Do not output code fences.';
-      const messages = [
-        { role: 'system' as const, content: system },
-        ...history.map(m => ({
-          role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
-          content: m.text,
-        })),
-        { role: 'user' as const, content: prompt },
-      ];
-      let streamed = '';
-      try {
-        const client = await getClient();
-        const stream = (await client.chat({
-          model: modelName(),
-          messages,
-          stream: true,
-        })) as unknown as AsyncIterable<{ message?: { content?: string } }>;
-        for await (const part of stream) {
-          const delta = part.message?.content;
-          if (delta) {
-            streamed += delta;
-            yield { type: 'text', text: delta, delta: true };
+  const TERMINAL_TOOLS = new Set(['propose_roadmap', 'build_workbook']);
+  const MAX_TOOL_ROUNDS = 2;
+
+  const messages = [
+    {
+      role: 'system' as const,
+      content:
+        'You are EduSpark, a professional curriculum architect. ' +
+        'Keep prose short and deliberate. Use tools when needed for research or diagrams.',
+    },
+    ...history.map(m => ({
+      role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
+      content: m.text,
+    })),
+    { role: 'user' as const, content: prompt },
+  ];
+
+  try {
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      yield { type: 'status', message: round === 0 ? 'Thinking…' : 'Synthesizing…' };
+      await sleep(800); // Intentional delay to make thoughts "slower" and more deliberate
+
+      const client = await getClient();
+      const tools = getActiveToolDefinitions().map(d => ({
+        type: 'function' as const,
+        function: {
+          name: d.name,
+          description: d.description,
+          parameters: d.parameters,
+        },
+      }));
+
+      const res = await client.chat({
+        model: modelName(),
+        messages,
+        tools,
+        stream: false,
+      });
+
+      const message = res.message;
+      if (!message) break;
+
+      // Check for tool calls
+      if (message.tool_calls && message.tool_calls.length > 0) {
+        messages.push(message as any);
+
+        for (const call of message.tool_calls) {
+          const name = call.function.name;
+          const args = call.function.arguments;
+
+          yield { type: 'tool_breadcrumb', label: `Executing ${name}…` };
+          await sleep(600);
+
+          if (TERMINAL_TOOLS.has(name)) {
+            if (name === 'propose_roadmap') {
+              yield { type: 'roadmap', roadmap: args as any };
+              return;
+            }
+            if (name === 'build_workbook') {
+              yield { type: 'function_call', args: args as any };
+              return;
+            }
           }
+
+          const toolResult = await runTool(name, args);
+          messages.push({
+            role: 'tool',
+            content: typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult),
+          } as any);
         }
-      } catch (e) {
-        console.warn('Ollama streaming failed, falling back:', e);
+        // Continue to next round to let model react to tool results
+        continue;
       }
-      if (!streamed) {
-        // Last-resort fallback: one-shot generate + mock text safety net.
-        const fallback = (await ollamaGenerate(prompt, system)) || chunk.text;
-        yield { type: 'text', text: fallback, delta: true };
+
+      // No tool calls, just text
+      if (message.content) {
+        yield { type: 'text', text: message.content, delta: true };
       }
-    } else {
-      yield chunk;
+      break;
     }
+  } catch (e) {
+    console.warn('Ollama tool loop failed, falling back to basic chat:', e);
+    // Legacy fallback logic
+    yield { type: 'text', text: 'I encountered an issue with the local model. Let me try to respond simply.', delta: true };
   }
 }
 
@@ -113,14 +158,15 @@ async function generateContentPage(
   objective: string,
   type: string,
   context: string,
-  stylePrefs?: import('@/lib/types').StylePrefs
+  stylePrefs?: StylePrefs
 ): Promise<string> {
   const sys =
-    'You are an educational content author. Output clean HTML only, wrapped in a single <div>. No markdown fences.';
-  const { buildContentPagePrompt } = await import('@/lib/authoring');
+    'You are an educational content author. Output clean HTML only, starting with <section class="page">. No preamble, no commentary, no markdown fences.';
+  const { buildContentPagePrompt, cleanHTML } = await import('@/lib/authoring');
   const prompt = buildContentPagePrompt({ title, objective, type, context, stylePrefs });
   const out = await ollamaGenerate(prompt, sys);
-  if (out && out.includes('<')) return out;
+  const cleaned = cleanHTML(out);
+  if (cleaned && cleaned.includes('<')) return cleaned;
   return mockProvider.generateContentPage(title, objective, type, context, stylePrefs);
 }
 

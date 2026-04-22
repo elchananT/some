@@ -49,24 +49,23 @@ export default function MessageList({ messages, isTyping, agentStatus }: Message
                 {m.role === 'model' ? <Sparkles size={18} /> : <User size={18} />}
               </div>
               
-              <div className={`flex flex-col max-w-[85%] ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+              <div className={`flex flex-col w-full ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
                 <span className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1.5 opacity-40 px-1">
                   {m.role === 'user' ? 'Authorized User' : 'EduSpark Architect'}
                 </span>
                 
-                <div className={`rounded-2xl px-5 py-3.5 shadow-sm transition-all hover:shadow-md ${
-                  m.role === 'user' 
-                    ? 'bg-[var(--color-surface)] border border-[var(--color-border)] border-r-4 border-r-[var(--color-accent)] text-[var(--color-ink)] rounded-tr-none' 
-                    : 'bg-white border border-[var(--color-border)] text-[var(--color-ink)] rounded-tl-none ring-1 ring-black/5'
-                }`}>
-                  {m.role === 'user' ? (
+                {m.role === 'user' ? (
+                  <div className="rounded-2xl px-5 py-3.5 shadow-sm bg-[var(--color-surface)] border border-[var(--color-border)] border-r-4 border-r-[var(--color-accent)] text-[var(--color-ink)] rounded-tr-none max-w-[85%]">
                     <p className="whitespace-pre-wrap text-base font-medium leading-relaxed">{m.text}</p>
-                  ) : (
-                    <div className="prose prose-stone max-w-none prose-base prose-p:leading-relaxed prose-pre:bg-[var(--color-sidebar)] prose-pre:text-[var(--color-ink)] prose-pre:border prose-pre:border-[var(--color-border)]">
+                  </div>
+                ) : (
+                  <div className="w-full bg-white border border-[var(--color-border)] rounded-2xl p-6 md:p-10 shadow-sm ring-1 ring-black/5 min-h-[100px] relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-[var(--color-accent)] opacity-20" />
+                    <div className="prose prose-stone max-w-none prose-base md:prose-lg prose-p:leading-relaxed prose-headings:font-serif prose-pre:bg-[var(--color-sidebar)] prose-pre:text-[var(--color-ink)] prose-pre:border prose-pre:border-[var(--color-border)] animate-fade-in">
                       <ReactMarkdown>{m.text}</ReactMarkdown>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </motion.div>
           ))}
@@ -81,16 +80,27 @@ export default function MessageList({ messages, isTyping, agentStatus }: Message
             <div className="w-10 h-10 rounded-2xl bg-[var(--color-ink)] text-white flex items-center justify-center shrink-0 border border-[var(--color-ink)] mt-1 shadow-sm animate-pulse">
               <Sparkles size={18} />
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 w-full">
               <span className="text-[10px] font-bold uppercase tracking-[0.2em] mb-0.5 opacity-40 px-1">
-                 Architect Thinking
+                 Architect Drafting
               </span>
-              <div className="bg-white border border-[var(--color-border)] rounded-2xl rounded-tl-none px-6 py-4 shadow-sm ring-1 ring-black/5">
-                <div className="flex gap-1.5">
-                  <motion.div animate={{ scale: [1, 1.4, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-1.5 h-1.5 bg-[var(--color-accent)] rounded-full" />
-                  <motion.div animate={{ scale: [1, 1.4, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-1.5 h-1.5 bg-[var(--color-accent)] rounded-full" />
-                  <motion.div animate={{ scale: [1, 1.4, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-1.5 h-1.5 bg-[var(--color-accent)] rounded-full" />
-                </div>
+              <div className="w-full bg-white border border-[var(--color-border)] rounded-2xl p-8 shadow-sm ring-1 ring-black/5 flex flex-col gap-4 overflow-hidden relative">
+                <div className="absolute top-0 left-0 w-1 h-full bg-[var(--color-accent)] opacity-20" />
+                <motion.div 
+                  animate={{ opacity: [0.3, 0.6, 0.3] }} 
+                  transition={{ repeat: Infinity, duration: 2 }}
+                  className="h-4 bg-[var(--color-sidebar)] rounded-md w-3/4" 
+                />
+                <motion.div 
+                  animate={{ opacity: [0.3, 0.6, 0.3] }} 
+                  transition={{ repeat: Infinity, duration: 2, delay: 0.4 }}
+                  className="h-4 bg-[var(--color-sidebar)] rounded-md w-1/2" 
+                />
+                <motion.div 
+                  animate={{ opacity: [0.3, 0.6, 0.3] }} 
+                  transition={{ repeat: Infinity, duration: 2, delay: 0.8 }}
+                  className="h-4 bg-[var(--color-sidebar)] rounded-md w-2/3" 
+                />
               </div>
               {agentStatus && (
                 <p className="text-[10px] font-black uppercase tracking-widest text-[var(--color-accent)] ml-1 animate-pulse">

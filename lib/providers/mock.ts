@@ -89,17 +89,35 @@ function mockRoadmap(topic: string): Roadmap {
 function mockContentHTML(title: string, objective: string, type: string): string {
   if (type === 'exercise') {
     return `
-<div class="workbook-page">
-  <h2>${title}</h2>
-  <p class="objective"><strong>Objective:</strong> ${objective}</p>
-  <ol class="exercises">
-    <li>Define the key term introduced in this section in your own words.</li>
-    <li>Give two real-world examples related to the topic.</li>
-    <li>Solve: If the pattern continues, what is the next value? (2, 4, 8, 16, …)</li>
-    <li>Explain the difference between the two main ideas presented earlier.</li>
-    <li>Create your own example that demonstrates the concept.</li>
+<section class="page">
+  <header class="page-header">
+    <h1>${title}</h1>
+  </header>
+  <div class="callout"><strong>Objective:</strong> ${objective}</div>
+  
+  <ol class="mc-options">
+    <li class="mc-option">Define the key term introduced in this section in your own words.</li>
+    <li class="mc-option">Give two real-world examples related to the topic.</li>
+    <li class="mc-option">Solve: If the pattern continues, what is the next value? <span class="math">2, 4, 8, 16, \dots</span></li>
+    <li class="mc-option">Explain the difference between the two main ideas presented earlier.</li>
+    <li class="mc-option">Create your own example that demonstrates the concept.</li>
   </ol>
-  <aside class="answer-key">
+
+  <div class="answer-line"></div>
+  <div class="answer-box" data-lines="4"></div>
+
+  <div class="grid-2col">
+    <div>
+      <h3>Quick Check</h3>
+      <div class="answer-line"></div>
+    </div>
+    <div>
+      <h3>Notes</h3>
+      <div class="answer-box" data-lines="2"></div>
+    </div>
+  </div>
+
+  <aside class="answer-key" style="display:none">
     <strong>Answer Key:</strong>
     <ol>
       <li>Student-produced definition aligned with the lesson.</li>
@@ -109,22 +127,45 @@ function mockContentHTML(title: string, objective: string, type: string): string
       <li>Student-created; grade on clarity and correctness.</li>
     </ol>
   </aside>
-</div>`.trim();
+</section>`.trim();
   }
   return `
-<div class="workbook-page">
-  <h2>${title}</h2>
-  <p class="objective"><strong>Objective:</strong> ${objective}</p>
+<section class="page">
+  <header class="page-header">
+    <h1>${title}</h1>
+  </header>
+  
+  <div class="callout">
+    <strong>Focus:</strong> ${objective}
+  </div>
+
   <p>This section introduces the core ideas behind <em>${title}</em>. Students should finish this page able to describe the main concepts confidently and relate them to prior knowledge.</p>
-  <h3>Key Points</h3>
-  <ul>
-    <li>Clear definition of the central concept.</li>
-    <li>One concrete example that makes it tangible.</li>
-    <li>A short visual cue or diagram suggestion.</li>
-  </ul>
-  <blockquote>“Understanding ${title.toLowerCase()} unlocks the rest of the unit.”</blockquote>
-  <p class="illustration-hint"><em>Illustration suggestion:</em> a simple diagram representing ${title.toLowerCase()}.</p>
-</div>`.trim();
+  
+  <div class="grid-2col">
+    <div>
+      <h3>Introduction</h3>
+      <p>Exploring the foundational concepts. We use structured layout to ensure high-fidelity PDF export and deterministic styling.</p>
+    </div>
+    <div>
+      <h3>Key Takeaways</h3>
+      <ul>
+        <li>Clear definition of the central concept.</li>
+        <li>One concrete example that makes it tangible.</li>
+        <li>A short visual cue or diagram suggestion.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="figure">
+    <svg width="200" height="100" viewBox="0 0 200 100">
+      <rect x="10" y="10" width="180" height="80" fill="var(--color-accent)" fill-opacity="0.1" stroke="var(--color-accent)" stroke-width="2" />
+      <text x="100" y="55" text-anchor="middle" font-family="serif" font-style="italic">Sample Illustration</text>
+    </svg>
+    <figcaption>Figure 1: Demonstration of the integrated SVG illustration system.</figcaption>
+  </div>
+
+  <p>The system supports inline math using KaTeX: <span class="math">E = mc^2</span> and complex diagrams via Mermaid.</p>
+</section>`.trim();
 }
 
 function mockSVG(title: string): string {

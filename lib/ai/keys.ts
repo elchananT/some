@@ -28,7 +28,7 @@ export type ProviderCredentials = {
 const DEFAULTS: ProviderCredentials = {
   gemini: { model: 'gemini-1.5-flash' },
   openai: { model: 'gpt-4o-mini' },
-  ollama: { baseURL: 'http://localhost:11434', model: 'llama3.2' },
+  ollama: { baseURL: 'http://localhost:11434', model: 'gemma4' },
   anthropic: { model: 'claude-3-5-sonnet-latest' },
   consent: {},
 };

@@ -146,15 +146,13 @@ export const TOOL_REGISTRY: Record<ToolId, ToolDefinition> = {
 
 export const ALL_TOOL_IDS: ToolId[] = Object.keys(TOOL_REGISTRY) as ToolId[];
 
-/** Returns the tool IDs that are currently active: enabled by the user
- * (or default-enabled) AND have any required key present. */
+/** Returns the tool IDs that are currently active: they have any required key present. 
+ * We no longer require an explicit 'enable' toggle per tool to keep the experience 
+ * autonomous and 'behind the scenes' as requested. */
 export function getActiveToolIds(): ToolId[] {
-  const enabled = readEnabledTools();
   const keys = readToolKeys();
   return ALL_TOOL_IDS.filter(id => {
     const def = TOOL_REGISTRY[id];
-    const on = enabled[id] ?? def.defaultEnabled;
-    if (!on) return false;
     if (def.requiresKey && !keys[def.requiresKey as keyof ToolKeys]) return false;
     return true;
   });

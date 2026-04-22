@@ -603,17 +603,11 @@ function TestButton({ onClick, status }: { onClick: () => void; status: Status }
  */
 function ToolsSection() {
   const [keys, setKeys] = useState<ToolKeys>(() => readToolKeys());
-  const [enabled, setEnabled] = useState<Partial<Record<ToolId, boolean>>>(() => readEnabledTools());
   const [showKey, setShowKey] = useState<Record<string, boolean>>({});
 
   function updateKey<K extends keyof ToolKeys>(k: K, v: string) {
     updateToolKey(k, v);
     setKeys(readToolKeys());
-  }
-
-  function toggle(id: ToolId, on: boolean) {
-    setToolEnabled(id, on);
-    setEnabled(readEnabledTools());
   }
 
   const KEY_FIELDS: Array<{ k: keyof ToolKeys; label: string; help: string; link?: string }> = [
@@ -624,92 +618,73 @@ function ToolsSection() {
   ];
 
   return (
-    <section className="space-y-3 pt-2 mt-2 border-t border-[var(--color-border,#E8E4DC)]">
+    <section className="space-y-4 pt-2 mt-2 border-t border-[var(--color-border,#E8E4DC)]">
       <div>
-        <h3 className="text-sm font-semibold text-[var(--color-ink,#1F1F1C)]">Tools & Integrations</h3>
+        <h3 className="text-sm font-semibold text-[var(--color-ink,#1F1F1C)]">Integrations</h3>
         <p className="text-xs text-[var(--color-muted,#7A756B)] mt-0.5">
-          Give the AI extra powers during workbook generation. All keys stay in your browser.
+          EduSpark uses these tools autonomously to ground workbooks in facts and research. Add your keys to enable them.
         </p>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-4">
         {KEY_FIELDS.map(f => (
           <div key={f.k as string}>
             <div className="flex items-center justify-between">
-              <label className="text-xs text-[var(--color-muted,#7A756B)]">
+              <label className="text-xs font-medium text-[var(--color-ink,#1F1F1C)]">
                 {f.label}
-                {f.link && (
-                  <>
-                    {' '}
-                    ·{' '}
-                    <a
-                      href={f.link}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="underline hover:text-[var(--color-ink,#1F1F1C)]"
-                    >
-                      get one
-                    </a>
-                  </>
-                )}
               </label>
+              {f.link && (
+                <a
+                  href={f.link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[10px] uppercase tracking-wider font-bold text-[var(--color-accent,#CC785C)] hover:underline"
+                >
+                  Get Key
+                </a>
+              )}
             </div>
-            <div className="relative mt-1">
+            <div className="relative mt-1.5">
               <input
                 type={showKey[f.k as string] ? 'text' : 'password'}
                 value={(keys[f.k] as string) || ''}
                 onChange={e => updateKey(f.k, e.target.value)}
                 placeholder="Paste key…"
-                className="w-full px-3 py-2 pr-10 rounded-xl border border-[var(--color-border,#E8E4DC)] bg-[var(--color-bg,#FAF9F6)] text-sm text-[var(--color-ink,#1F1F1C)] focus:outline-none focus:border-[var(--color-accent,#CC785C)]"
+                className="w-full px-4 py-2.5 pr-12 rounded-xl border border-[var(--color-border,#E8E4DC)] bg-[var(--color-bg,#FAF9F6)] text-sm text-[var(--color-ink,#1F1F1C)] focus:outline-none focus:border-[var(--color-accent,#CC785C)] focus:ring-2 focus:ring-[var(--color-accent,#CC785C)]/10"
                 autoComplete="off"
                 spellCheck={false}
               />
               <button
                 type="button"
                 onClick={() => setShowKey(s => ({ ...s, [f.k as string]: !s[f.k as string] }))}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-[var(--color-muted,#7A756B)] hover:text-[var(--color-ink,#1F1F1C)]"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg text-[var(--color-muted,#7A756B)] hover:text-[var(--color-ink,#1F1F1C)]"
                 aria-label="Toggle visibility"
               >
-                {showKey[f.k as string] ? <EyeOff size={14} /> : <Eye size={14} />}
+                {showKey[f.k as string] ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
-            <p className="text-[11px] text-[var(--color-muted,#7A756B)] mt-1">{f.help}</p>
+            <p className="text-[11px] text-[var(--color-muted,#7A756B)] mt-1.5 leading-relaxed">{f.help}</p>
           </div>
         ))}
       </div>
 
-      <div>
-        <div className="text-xs text-[var(--color-muted,#7A756B)] mb-1.5">Enabled tools</div>
-        <div className="space-y-1.5">
+      <div className="p-3.5 rounded-2xl bg-[var(--color-sidebar,#F5F2ED)] border border-[var(--color-border,#E8E4DC)]">
+        <h4 className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-muted,#7A756B)] mb-2">Autonomous Capability</h4>
+        <div className="flex flex-wrap gap-1.5">
           {ALL_TOOL_IDS.map(id => {
             const def = TOOL_REGISTRY[id];
-            const on = enabled[id] ?? def.defaultEnabled;
-            const needsKey = def.requiresKey && !(keys[def.requiresKey as keyof ToolKeys]);
+            const hasKey = !def.requiresKey || !!keys[def.requiresKey as keyof ToolKeys];
             return (
-              <div
-                key={id}
-                className="flex items-start justify-between gap-3 p-2.5 rounded-xl border border-[var(--color-border,#E8E4DC)] bg-[var(--color-surface,#FFFFFF)]"
+              <span 
+                key={id} 
+                className={`px-2 py-1 rounded-lg text-[10px] font-medium border ${
+                  hasKey 
+                    ? 'bg-white border-[var(--color-accent)]/20 text-[var(--color-ink)]' 
+                    : 'bg-white/50 border-dashed border-[var(--color-border)] text-[var(--color-muted)]'
+                }`}
               >
-                <div className="min-w-0">
-                  <div className="text-xs font-semibold text-[var(--color-ink,#1F1F1C)]">{def.name}</div>
-                  <p className="text-[11px] text-[var(--color-muted,#7A756B)] mt-0.5 truncate">
-                    {def.description}
-                  </p>
-                  {needsKey && (
-                    <p className="text-[11px] text-amber-700 mt-0.5">Needs a key above to activate.</p>
-                  )}
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    className="sr-only peer"
-                    checked={!!on}
-                    onChange={e => toggle(id, e.target.checked)}
-                  />
-                  <div className="w-9 h-5 bg-[var(--color-border,#E8E4DC)] rounded-full peer-checked:bg-[var(--color-accent,#CC785C)] transition-colors" />
-                  <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4" />
-                </label>
-              </div>
+                {def.name}
+              </span>
             );
           })}
         </div>

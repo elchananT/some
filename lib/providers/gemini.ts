@@ -132,6 +132,7 @@ async function* chatStream(
   const config = buildConfig();
   const TERMINAL_TOOLS = new Set(['propose_roadmap', 'build_workbook']);
   const MAX_TOOL_ROUNDS = 3;
+  const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
   // Mutable Gemini-shaped content history; we append function-call/response turns to it
   // as we execute in-app tools and loop back.
@@ -143,6 +144,9 @@ async function* chatStream(
     yield { type: 'status', message: 'Thinking…' };
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      yield { type: 'status', message: round === 0 ? 'Thinking…' : 'Synthesizing…' };
+      await sleep(1000); // Intentional delay to make thoughts "slower"
+
       const stream = await withBackoff((attempt) =>
         makeClient(attempt).models.generateContentStream({
           model: chatModel(),
