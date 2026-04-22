@@ -7,10 +7,18 @@ import type { PipelineHooks } from './types';
 
 /**
  * Per-provider concurrency caps for page drafting.
- *  - Gemini Flash has generous per-minute quotas → 5
- *  - OpenAI standard tier → 3
- *  - Ollama runs on local CPU/GPU → 1 (serial)
- *  - Mock / unknown → 3 (fast, in-memory)
+ *
+ * Gemini's **free tier** for `gemini-2.5-flash` is only ~10 requests/minute,
+ * and a 10-page workbook fanned out at 5 parallel calls would instantly burn
+ * through it and trip 429 — exactly the "rate limit after one request" UX bug
+ * users were hitting. We now draft sequentially for free-tier-sized jobs and
+ * let `withBackoff` honor Gemini's suggested `retryDelay` on any 429 that
+ * still happens.
+ *
+ *  - Gemini → 2 (safe under free-tier RPM when combined with backoff)
+ *  - OpenAI → 3
+ *  - Ollama → 1 (local CPU/GPU — always serial)
+ *  - Mock / unknown → 3
  */
 function concurrencyCapForActiveProvider(): number {
   const id = (() => {
@@ -22,9 +30,11 @@ function concurrencyCapForActiveProvider(): number {
   })();
   switch (id) {
     case 'gemini':
-      return 5;
+      return 2;
     case 'openai':
       return 3;
+    case 'anthropic':
+      return 2;
     case 'ollama':
       return 1;
     default:
