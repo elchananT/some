@@ -47,7 +47,7 @@ export default function ArtifactPane({
   const [isStudioOpen, setIsStudioOpen] = React.useState(false);
 
   const handleExport = async (
-    format: 'md' | 'txt' | 'html' | 'html-teacher' | 'html-student'
+    format: 'md' | 'txt' | 'html' | 'html-teacher' | 'html-student' | 'pro-pdf'
   ) => {
     if (!workbook) return;
 
@@ -55,6 +55,18 @@ export default function ArtifactPane({
     let mimeType = 'text/plain';
     let ext: string = format;
     let suffix = '';
+
+    if (format === 'pro-pdf') {
+      const html = await workbookToHTMLStandaloneBaked(workbook, { usePagedJS: true });
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(html);
+        win.document.close();
+        win.onload = () => setTimeout(() => win.print(), 3000);
+      }
+      setIsExportMenuOpen(false);
+      return;
+    }
 
     if (format === 'md') {
       content = workbookToMarkdown(workbook);
@@ -155,6 +167,19 @@ export default function ArtifactPane({
                          exit={{ opacity: 0, scale: 0.9, y: 10 }}
                          className="absolute bottom-full mb-4 right-0 bg-white border border-[#e5e5e5] rounded-[30px] shadow-2xl p-3 flex flex-col gap-2 min-w-[220px]"
                        >
+                         <button 
+                           onClick={() => handleExport('pro-pdf')}
+                           className="flex items-center gap-4 p-4 text-sm font-bold text-[#1a1a1a] bg-[#1a1a1a]/5 hover:bg-[#1a1a1a] hover:text-white rounded-2xl transition-all group"
+                         >
+                           <div className="w-10 h-10 rounded-xl bg-white text-[#1a1a1a] flex items-center justify-center group-hover:scale-110 transition-all shadow-sm">
+                             <Sparkles size={20} />
+                           </div>
+                           <div className="flex flex-col items-start translate-y-0.5">
+                             <span>High-Fidelity PDF</span>
+                             <span className="text-[10px] opacity-60 font-mono">Pro Paged.js format</span>
+                           </div>
+                         </button>
+
                          <button 
                            onClick={() => handleExport('html')}
                            className="flex items-center gap-4 p-4 text-sm font-bold text-[#1a1a1a] hover:bg-[#f5f5f5] rounded-2xl transition-all group"

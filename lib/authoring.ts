@@ -15,7 +15,8 @@ export const AUTHORING_RUBRIC = `AUTHORING RUBRIC — self-check before you answ
 4. MCQ quality: 4 options, 3 plausible distractors tied to real misconceptions (no "none of the above").
 5. No duplicate questions or near-duplicates across a workbook.
 6. Age/level consistency with the stated level.
-7. Factual grounding: if you are unsure of a fact, hedge or omit — never invent.
+7. Factual grounding: Use your SEARCH and WIKI tools for any fact you are not 100% certain of. Ground examples in real-world data.
+8. Interactive elements: Include sections that require the student to observe, reflect, or research.
 
 HTML OUTPUT VOCABULARY (use these semantic classes, nothing else):
 - <section class="page"> ONE per physical page
@@ -28,12 +29,16 @@ HTML OUTPUT VOCABULARY (use these semantic classes, nothing else):
 - <div class="figure"><svg>...</svg><figcaption>...</figcaption></div>
 - <div class="callout"><strong>Note:</strong> ...</div>
 - <div class="grid-2col">...</div> for side-by-side
+- <div class="takeaway"><strong>Key Takeaway:</strong> ...</div>
+- <div class="glossary-item"><dt>Term</dt><dd>Definition</dd></div>
+- <div class="case-study"><h3>Case Study: ...</h3>...</div>
 
 HARD RULES:
 - NEVER emit <style>, <link>, or style="..." attributes.
 - NEVER use external images or <img src="http...">. Inline SVG only.
 - Keep each page ≤ 450 words / ≤ 25 vertical lines. If you'd overflow, split into a second page.
-- Always include a concrete example before asking a question about a concept.`;
+- Always include a concrete example before asking a question about a concept.
+- If creating a Cover Page, use <div class="cover-content">...</div> inside the section.`;
 
 export const QUESTION_TYPE_LABELS: Record<QuestionTypeId, string> = {
   mcq: 'multiple choice (4 options with distractors)',

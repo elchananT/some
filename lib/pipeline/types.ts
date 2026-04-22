@@ -27,7 +27,7 @@ export interface StructuredPage {
 
 /** Callbacks for a pipeline run — the hook maps these onto React state. */
 export interface PipelineHooks {
-  onStage(stage: 'composing' | 'illustrating' | 'verifying' | 'complete'): void;
+  onStage(stage: 'researching' | 'composing' | 'illustrating' | 'verifying' | 'complete'): void;
   onBreadcrumb(label: string): void;
   onPhase(text: string): void;
   onPageUpdate(index: number, page: WorkbookPage): void;

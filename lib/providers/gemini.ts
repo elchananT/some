@@ -249,6 +249,65 @@ async function* chatStream(
   }
 }
 
+async function toolCallingLoop(
+  prompt: string,
+  model: string,
+  config: GenerateContentConfig,
+  maxRounds = 3
+): Promise<string> {
+  const contents: Array<{ role: string; parts: Array<Record<string, unknown>> }> = [
+    { role: 'user', parts: [{ text: prompt }] },
+  ];
+
+  for (let round = 0; round < maxRounds; round++) {
+    const res = await withBackoff((attempt) =>
+      makeClient(attempt).models.generateContent({
+        model,
+        contents,
+        config,
+      })
+    );
+
+    const fc = res.functionCalls;
+    if (fc && fc.length > 0) {
+      contents.push({
+        role: 'model',
+        parts: fc.map(c => ({
+          functionCall: {
+            name: c.name,
+            args:
+              typeof c.args === 'string'
+                ? JSON.parse(c.args as string)
+                : ((c.args as Record<string, unknown>) ?? {}),
+          },
+        })),
+      });
+
+      const responseParts: Array<Record<string, unknown>> = [];
+      for (const c of fc) {
+        const args =
+          typeof c.args === 'string'
+            ? JSON.parse(c.args as string)
+            : ((c.args as Record<string, unknown>) ?? {});
+        const result = await runTool(c.name as string, args);
+        responseParts.push({
+          functionResponse: {
+            name: c.name,
+            response: result.ok
+              ? { content: result.content }
+              : { error: result.error ?? 'tool failed' },
+          },
+        });
+      }
+      contents.push({ role: 'user', parts: responseParts });
+      continue;
+    }
+
+    return res.text || '';
+  }
+  return '';
+}
+
 async function generateContentPage(
   title: string,
   objective: string,
@@ -258,10 +317,12 @@ async function generateContentPage(
 ): Promise<string> {
   assertKey();
   const prompt = buildContentPagePrompt({ title, objective, type, context, stylePrefs });
-  const res = await withBackoff((attempt) =>
-    makeClient(attempt).models.generateContent({ model: utilModel(), contents: prompt })
-  );
-  return res.text || 'Content generation failed.';
+  const config = {
+    ...buildConfig(),
+    // For content generation, we don't need the roadmap/build tools
+    tools: [{ functionDeclarations: geminiToolDeclarations() }],
+  };
+  return await toolCallingLoop(prompt, utilModel(), config);
 }
 
 async function generateSVGIllustration(

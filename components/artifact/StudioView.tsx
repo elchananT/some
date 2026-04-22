@@ -161,6 +161,23 @@ export default function StudioView({ workbook, onUpdateWorkbook, onExit }: Studi
     URL.revokeObjectURL(url);
   };
 
+  const handleExportProPDF = () => {
+    // For Paged.js, we open a new window with the rendered content
+    // and let the user print from there (it's the only way to get the
+    // Paged.js polyfill to trigger the browser's print engine correctly).
+    const html = sanitizeDocument(workbookToHTMLStandalone(workbook, { usePagedJS: true }));
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      // Most browsers will show the print dialog if we call this after Paged.js finishes
+      // but Paged.js has its own events. For a quick implementation:
+      win.onload = () => {
+        setTimeout(() => win.print(), 3000);
+      };
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[100] bg-[#fafafa] flex flex-col font-sans text-[#1a1a1a]">
       {/* Top Bar */}
@@ -231,14 +248,23 @@ export default function StudioView({ workbook, onUpdateWorkbook, onExit }: Studi
           <button 
             onClick={handleExportHTML}
             className="flex items-center gap-2 px-4 py-2 border border-[#e5e5e5] rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#f5f5f5] transition-all"
+            title="Export as standalone HTML"
           >
-            <FileCode size={16} /> HTML
+            <FileCode size={16} />
           </button>
           <button 
             onClick={handleExportPDF}
-            className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#333] transition-all shadow-lg shadow-black/10"
+            className="flex items-center gap-2 px-4 py-2 border border-[#e5e5e5] rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#f5f5f5] transition-all"
+            title="Export Standard PDF (html2pdf)"
           >
-            <Download size={16} /> PDF
+            <Download size={16} /> Standard
+          </button>
+          <button 
+            onClick={handleExportProPDF}
+            className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#333] transition-all shadow-lg shadow-black/10"
+            title="Export Pro PDF (Paged.js)"
+          >
+            <Sparkles size={16} /> Pro PDF
           </button>
         </div>
       </header>

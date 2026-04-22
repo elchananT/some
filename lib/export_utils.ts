@@ -363,6 +363,30 @@ const EXTRA_EXPORT_CSS = `
   .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12pt; }
   .figure { text-align: center; margin: 12pt 0; }
   .figure figcaption { font-size: 9pt; color: var(--muted, #7A756B); margin-top: 4pt; font-style: italic; }
+  
+  /* Paged.js Bells & Whistles */
+  @page {
+    size: A4;
+    margin: 20mm;
+    @bottom-right {
+      content: counter(page);
+      font-family: 'SFMono-Regular', monospace;
+      font-size: 9pt;
+      color: #7A756B;
+    }
+    @bottom-left {
+      content: element(runningTitle);
+      font-family: Georgia, serif;
+      font-size: 9pt;
+      font-style: italic;
+      color: #7A756B;
+    }
+  }
+
+  .running-title {
+    position: running(runningTitle);
+  }
+
   /* Teacher copy: highlight answers/keys */
   body.teacher-copy .answer-key,
   body.teacher-copy .answer { background: #FFF4E5; border-left: 3px solid #CC785C; padding: 4pt 8pt; }
@@ -374,6 +398,8 @@ const EXTRA_EXPORT_CSS = `
 export interface ExportOptions {
   /** 'teacher' shows answer keys prominently; 'student' hides them; undefined = as-written. */
   audience?: 'teacher' | 'student';
+  /** If true, includes Paged.js for high-fidelity multi-page rendering. */
+  usePagedJS?: boolean;
 }
 
 /**
@@ -408,6 +434,12 @@ export function workbookToHTMLStandalone(
     ? '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" crossorigin="anonymous">'
     : '';
 
+  const pagedjsScript = opts.usePagedJS
+    ? '<script src="https://unpkg.com/pagedjs/dist/paged.polyfill.js"></script>'
+    : '';
+
+  const runningTitle = `<div class="running-title">${escapeHtml(workbook.title)} &middot; ${escapeHtml(workbook.subject)}</div>`;
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -415,12 +447,14 @@ export function workbookToHTMLStandalone(
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${escapeHtml(workbook.title)}</title>
 ${katexLink}
+${pagedjsScript}
 <style>${PRINT_CSS}
 ${PRINT_THEMES_CSS}
 ${DENSITY_CSS_ALL}
 ${EXTRA_EXPORT_CSS}</style>
 </head>
 <body class="${bodyClass}">
+${runningTitle}
 ${pagesHtml}
 </body>
 </html>`;
