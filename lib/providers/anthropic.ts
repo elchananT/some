@@ -56,6 +56,65 @@ function mapMessages(history: ChatMessage[], prompt: string) {
   return msgs;
 }
 
+async function toolCallingLoop(
+  mod: AnthropicMod,
+  prompt: string,
+  system?: string,
+  maxRounds = 2
+): Promise<string> {
+  const messages: any[] = [{ role: 'user', content: prompt }];
+
+  try {
+    for (let round = 0; round < maxRounds; round++) {
+      const res = await withBackoff((attempt) => {
+        const client = makeClient(mod, attempt);
+        return client.messages.create({
+          model: getModel('anthropic') || 'claude-3-5-sonnet-latest',
+          max_tokens: 4096,
+          system: system ?? 'You are an educational content author.',
+          tools: anthropicTools() as any,
+          messages,
+        });
+      });
+
+      const message = res;
+      if (!message.content) break;
+
+      const toolCalls = (message.content as any[]).filter(b => b.type === 'tool_use');
+      const textBlocks = (message.content as any[]).filter(b => b.type === 'text');
+
+      if (toolCalls.length > 0) {
+        messages.push({
+          role: 'assistant',
+          content: message.content,
+        });
+
+        for (const tc of toolCalls) {
+          const name = tc.name;
+          const args = tc.input;
+          const toolResult = await runTool(name, args);
+          messages.push({
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: tc.id,
+                content: typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult),
+              },
+            ],
+          });
+        }
+        continue;
+      }
+
+      return (textBlocks[0]?.text as string) || '';
+    }
+  } catch (e) {
+    console.warn('Anthropic tool loop failed:', e);
+  }
+  return '';
+}
+
 async function* chatStream(
   history: ChatMessage[],
   prompt: string
@@ -226,14 +285,20 @@ async function generateContentPage(
   context: string,
   stylePrefs?: StylePrefs
 ): Promise<string> {
-  const { buildContentPagePrompt, cleanHTML } = await import('@/lib/authoring');
-  const text = await simpleText(
-    buildContentPagePrompt({ title, objective, type, context, stylePrefs }),
-    'You are an educational content author. Output clean HTML only, starting with <section class="page">. No preamble, no commentary, no markdown fences.'
-  );
-  const cleaned = cleanHTML(text);
-  if (cleaned && cleaned.includes('<')) return cleaned;
-  return mockProvider.generateContentPage(title, objective, type, context, stylePrefs);
+  const mod = await loadSdk();
+  if (!mod || !apiKey()) return mockProvider.generateContentPage(title, objective, type, context, stylePrefs);
+  try {
+    const { buildContentPagePrompt, cleanHTML } = await import('@/lib/authoring');
+    const sys =
+      'You are an educational content author. Output clean HTML only, starting with <section class="page">. No preamble, no commentary, no markdown fences. Use tools for research or diagrams if helpful.';
+    const prompt = buildContentPagePrompt({ title, objective, type, context, stylePrefs });
+    const out = await toolCallingLoop(mod, prompt, sys);
+    const cleaned = cleanHTML(out);
+    if (cleaned && cleaned.includes('<')) return cleaned;
+    return mockProvider.generateContentPage(title, objective, type, context, stylePrefs);
+  } catch {
+    return mockProvider.generateContentPage(title, objective, type, context, stylePrefs);
+  }
 }
 
 async function verifyWorkbook(workbook: Workbook): Promise<string> {

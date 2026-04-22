@@ -31,7 +31,7 @@ async function getClient() {
 }
 
 async function ollamaGenerate(prompt: string, system?: string): Promise<string> {
-  // Non-streaming helper for one-shot tasks (title, verify, summarize, page content).
+  // Non-streaming helper for one-shot tasks (title, verify, summarize).
   try {
     const client = await getClient();
     const res = await client.chat({
@@ -60,6 +60,61 @@ async function ollamaGenerate(prompt: string, system?: string): Promise<string> 
       return '';
     }
   }
+}
+
+async function toolCallingLoop(
+  prompt: string,
+  system?: string,
+  maxRounds = 2
+): Promise<string> {
+  const messages = [
+    ...(system ? [{ role: 'system' as const, content: system }] : []),
+    { role: 'user' as const, content: prompt },
+  ];
+
+  try {
+    for (let round = 0; round < maxRounds; round++) {
+      const client = await getClient();
+      const tools = getActiveToolDefinitions().map(d => ({
+        type: 'function' as const,
+        function: {
+          name: d.name,
+          description: d.description,
+          parameters: d.parameters,
+        },
+      }));
+
+      const res = await client.chat({
+        model: modelName(),
+        messages,
+        tools,
+        stream: false,
+      });
+
+      const message = res.message;
+      if (!message) break;
+
+      if (message.tool_calls && message.tool_calls.length > 0) {
+        messages.push(message as any);
+
+        for (const call of message.tool_calls) {
+          const name = call.function.name;
+          const args = call.function.arguments;
+          const toolResult = await runTool(name, args);
+          messages.push({
+            role: 'tool',
+            content: typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult),
+          } as any);
+        }
+        continue;
+      }
+
+      return (message.content || '').trim();
+    }
+  } catch (e) {
+    console.warn('Ollama tool loop failed:', e);
+  }
+  return ollamaGenerate(prompt, system);
 }
 
 async function* chatStream(
@@ -161,10 +216,10 @@ async function generateContentPage(
   stylePrefs?: StylePrefs
 ): Promise<string> {
   const sys =
-    'You are an educational content author. Output clean HTML only, starting with <section class="page">. No preamble, no commentary, no markdown fences.';
+    'You are an educational content author. Output clean HTML only, starting with <section class="page">. No preamble, no commentary, no markdown fences. Use tools for research or diagrams if helpful.';
   const { buildContentPagePrompt, cleanHTML } = await import('@/lib/authoring');
   const prompt = buildContentPagePrompt({ title, objective, type, context, stylePrefs });
-  const out = await ollamaGenerate(prompt, sys);
+  const out = await toolCallingLoop(prompt, sys);
   const cleaned = cleanHTML(out);
   if (cleaned && cleaned.includes('<')) return cleaned;
   return mockProvider.generateContentPage(title, objective, type, context, stylePrefs);

@@ -37,6 +37,55 @@ function makeClient(mod: typeof import('openai'), attempt = 0) {
   });
 }
 
+async function toolCallingLoop(
+  mod: typeof import('openai'),
+  prompt: string,
+  system?: string,
+  maxRounds = 2
+): Promise<string> {
+  const messages: any[] = [
+    ...(system ? [{ role: 'system' as const, content: system }] : []),
+    { role: 'user' as const, content: prompt },
+  ];
+
+  try {
+    for (let round = 0; round < maxRounds; round++) {
+      const res = await withBackoff((attempt) =>
+        makeClient(mod, attempt).chat.completions.create({
+          model: getModel('openai') || 'gpt-4o-mini',
+          messages,
+          stream: false,
+          tools: openaiTools() as any,
+          tool_choice: 'auto',
+        })
+      );
+
+      const message = res.choices[0]?.message;
+      if (!message) break;
+
+      if (message.tool_calls && message.tool_calls.length > 0) {
+        messages.push(message);
+        for (const tc of message.tool_calls as any[]) {
+          const name = tc.function.name;
+          const args = JSON.parse(tc.function.arguments);
+          const toolResult = await runTool(name, args);
+          messages.push({
+            role: 'tool',
+            tool_call_id: tc.id,
+            content: typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult),
+          });
+        }
+        continue;
+      }
+
+      return message.content || '';
+    }
+  } catch (e) {
+    console.warn('OpenAI tool loop failed:', e);
+  }
+  return '';
+}
+
 async function* chatStream(
   history: ChatMessage[],
   prompt: string
@@ -177,23 +226,10 @@ async function generateContentPage(
   if (!mod || !apiKey()) return mockProvider.generateContentPage(title, objective, type, context, stylePrefs);
   try {
     const { buildContentPagePrompt, cleanHTML } = await import('@/lib/authoring');
-    const res = await withBackoff((attempt) =>
-      makeClient(mod, attempt).chat.completions.create({
-        model: getModel('openai') || 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content:
-              'You are an educational content author. Output clean HTML only, starting with <section class="page">. No preamble, no commentary, no markdown fences.',
-          },
-          {
-            role: 'user',
-            content: buildContentPagePrompt({ title, objective, type, context, stylePrefs }),
-          },
-        ],
-      })
-    );
-    const out = res.choices[0]?.message?.content || '';
+    const sys =
+      'You are an educational content author. Output clean HTML only, starting with <section class="page">. No preamble, no commentary, no markdown fences. Use tools for research or diagrams if helpful.';
+    const prompt = buildContentPagePrompt({ title, objective, type, context, stylePrefs });
+    const out = await toolCallingLoop(mod, prompt, sys);
     const cleaned = cleanHTML(out);
     if (cleaned && cleaned.includes('<')) return cleaned;
     return mockProvider.generateContentPage(title, objective, type, context, stylePrefs);
